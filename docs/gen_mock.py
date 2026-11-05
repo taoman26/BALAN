@@ -58,7 +58,7 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
 
     # ---- ヘッダー ----
     t(24, 50, "BALAN", font(FB, 22), TXT)
-    t(26, 80, "Balance Board Assisted Reading And Navigation", font(F, 10), DIM)
+    t(26, 80, "Balance Board Assisted Learning And Navigation", font(F, 10), DIM)
     cx = GREEN if connected else RED
     label = "Connected" if connected else "Disconnected"
     # 最小化(トレイへ) / 接続状態 / 電池

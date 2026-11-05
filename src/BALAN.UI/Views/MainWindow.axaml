@@ -31,7 +31,7 @@
       <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,12">
         <StackPanel Spacing="2">
           <TextBlock Text="BALAN" FontSize="22" FontWeight="Bold" />
-          <TextBlock Text="Balance Board Assisted Reading And Navigation" Classes="dim" />
+          <TextBlock Text="Balance Board Assisted Learning And Navigation" Classes="dim" />
         </StackPanel>
         <TextBlock Grid.Column="1" Classes="dim" VerticalAlignment="Center" Margin="0,0,16,0" Text="{Binding BatteryText}" />
         <Border Grid.Column="2" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource BorderBrush2}"

@@ -1,6 +1,6 @@
 # BALAN 設計書
 
-**B**alance Board **A**ssisted Reading **A**nd **N**avigation
+**B**alance Board **A**ssisted **L**earning **A**nd **N**avigation
 
 > 右足で進む。左足で止まる。
 > BALAN は「足でスクロールするツール」ではなく、**情報閲覧速度を足で制御する巡航 UI** である。

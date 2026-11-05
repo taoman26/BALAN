@@ -1,6 +1,6 @@
 # BALAN
 
-**B**alance Board **A**ssisted Reading **A**nd **N**avigation
+**B**alance Board **A**ssisted **L**earning **A**nd **N**avigation
 
 Wii Balance Board を「足で速度を制御する巡航スクロール」に使う常駐アプリ(Windows / Linux)。座って、足でボードの隅を踏んで操作する。
 
