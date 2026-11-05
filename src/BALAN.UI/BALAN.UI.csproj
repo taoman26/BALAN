@@ -5,7 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
+    <!-- アイコンは assets/ のものを Assets/ として取り込む(gen_icon.py で再生成できる) -->
+    <AvaloniaResource Include="..\..\assets\*.png" Link="Assets\%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="BALAN.Tests" />
   </ItemGroup>
 
