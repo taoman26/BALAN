@@ -1,0 +1,17 @@
+# BALAN: 一般ユーザーが仮想マウス(uinput)と Balance Board(hidraw)を使えるようにする udev ルール
+#
+# インストール:
+#   sudo cp tools/linux/99-balan.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   sudo usermod -aG input "$USER"      # 実行後、ログインし直す
+#   sudo modprobe uinput                # 起動時に自動ロードするなら: echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+
+# 仮想マウスの作成(/dev/uinput)。スクロール送出に必要
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
+
+# Balance Board(Bluetooth HID)の生レポート読み取り(/dev/hidraw*)。Wii Remote と同じ 057E:0306(0330 は Wii Remote Plus)
+# 注意: Bluetooth 接続の hidraw はデバイス名(KERNELS)で照合する。このルールは実機で未検証。
+# 効かない場合は `udevadm info -a -n /dev/hidrawN` で実際の属性を確認すること。
+# なお BALAN は bluetoothctl での探索 + L2CAP 直結(hidraw を使わない経路)も持つため、hidraw が使えなくても接続できる場合がある。
+SUBSYSTEM=="hidraw", KERNELS=="0005:057E:0306.*", GROUP="input", MODE="0660"
+SUBSYSTEM=="hidraw", KERNELS=="0005:057E:0330.*", GROUP="input", MODE="0660"

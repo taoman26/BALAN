@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>BALAN</AssemblyName>
+    <RootNamespace>BALAN.App</RootNamespace>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BALAN.Core\BALAN.Core.csproj" />
+    <ProjectReference Include="..\BALAN.Device\BALAN.Device.csproj" />
+    <ProjectReference Include="..\BALAN.Input\BALAN.Input.csproj" />
+    <ProjectReference Include="..\BALAN.UI\BALAN.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

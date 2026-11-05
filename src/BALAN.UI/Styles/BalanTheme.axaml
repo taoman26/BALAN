@@ -1,0 +1,123 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- docs/gen_mock.py の配色と同じ -->
+  <Styles.Resources>
+    <Color x:Key="BgColor">#1B1C21</Color>
+    <Color x:Key="TitleColor">#141519</Color>
+    <Color x:Key="PanelColor">#24262D</Color>
+    <Color x:Key="FieldColor">#17181D</Color>
+    <Color x:Key="BorderColor">#3A3D4A</Color>
+    <Color x:Key="AccentColor">#4F8CFF</Color>
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
+    <SolidColorBrush x:Key="TitleBrush" Color="{StaticResource TitleColor}" />
+    <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
+    <SolidColorBrush x:Key="FieldBrush" Color="{StaticResource FieldColor}" />
+    <SolidColorBrush x:Key="BorderBrush2" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="DimBrush" Color="#8B90A3" />
+    <SolidColorBrush x:Key="TextBrush" Color="#E6E8EF" />
+    <SolidColorBrush x:Key="GoBrush" Color="#3ECF6E" />
+    <SolidColorBrush x:Key="BrakeBrush" Color="#E5594F" />
+    <SolidColorBrush x:Key="WarnBrush" Color="#F2C94C" />
+    <SolidColorBrush x:Key="FastBrush" Color="#F2994A" />
+    <SolidColorBrush x:Key="SlowBrush" Color="#56B6C2" />
+  </Styles.Resources>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource BgBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="16" />
+  </Style>
+
+  <Style Selector="TextBlock.section">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="LetterSpacing" Value="1" />
+  </Style>
+  <Style Selector="TextBlock.dim">
+    <Setter Property="Foreground" Value="{StaticResource DimBrush}" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="Consolas, Menlo, DejaVu Sans Mono, monospace" />
+  </Style>
+
+  <!-- ボタン -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="#353847" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#6AA0FF" />
+  </Style>
+  <Style Selector="Button.titlebar">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource DimBrush}" />
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <!-- 荷重セル / 速度バー -->
+  <Style Selector="ProgressBar">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+
+  <!-- 巡航段階のステップ表示 -->
+  <Style Selector="Border.step">
+    <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="Margin" Value="4,0" />
+  </Style>
+  <Style Selector="Border.step > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource DimBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.step.active > TextBlock">
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+  </Style>
+  <Style Selector="Border.step.slow.active">
+    <Setter Property="BorderBrush" Value="{StaticResource SlowBrush}" />
+    <Setter Property="Background" Value="#2C3D45" />
+  </Style>
+  <Style Selector="Border.step.medium.active">
+    <Setter Property="BorderBrush" Value="{StaticResource WarnBrush}" />
+    <Setter Property="Background" Value="#47402A" />
+  </Style>
+  <Style Selector="Border.step.fast.active">
+    <Setter Property="BorderBrush" Value="{StaticResource FastBrush}" />
+    <Setter Property="Background" Value="#4A3626" />
+  </Style>
+  <Style Selector="Border.step.stopped.active">
+    <Setter Property="BorderBrush" Value="{StaticResource DimBrush}" />
+    <Setter Property="Background" Value="#2B2D36" />
+  </Style>
+</Styles>
