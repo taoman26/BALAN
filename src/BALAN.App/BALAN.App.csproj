@@ -5,6 +5,7 @@
     <AssemblyName>BALAN</AssemblyName>
     <RootNamespace>BALAN.App</RootNamespace>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
