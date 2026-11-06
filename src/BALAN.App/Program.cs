@@ -21,6 +21,15 @@ public static class Program
     public static int Main(string[] args)
     {
         CrashLog.Install();
+
+        // 二重起動の防止(既に動いていれば、トレイ常駐中のそちらを使う)。
+        using var instance = SingleInstance.TryAcquire(SingleInstance.DefaultPath, out var alreadyRunning);
+        if (alreadyRunning)
+        {
+            Console.Error.WriteLine("BALAN is already running (see the system tray).");
+            return 0;
+        }
+
         var simulate = args.Contains("--simulate");
         var options = new AppOptions(
             HideToTray: !args.Contains("--no-tray"),
