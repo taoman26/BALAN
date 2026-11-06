@@ -8,8 +8,13 @@ public sealed class WindowsScrollSender : IScrollSender
 {
     private const uint InputMouse = 0;
     private const uint MouseEventFWheel = 0x0800;
+    private const uint MouseEventFHWheel = 0x1000; // 水平ホイール(正 = 右)
 
-    public void SendVertical(int wheelDelta)
+    public void SendVertical(int wheelDelta) => SendWheel(wheelDelta, MouseEventFWheel);
+
+    public void SendHorizontal(int wheelDelta) => SendWheel(wheelDelta, MouseEventFHWheel);
+
+    private static void SendWheel(int wheelDelta, uint flag)
     {
         if (wheelDelta == 0)
         {
@@ -23,9 +28,9 @@ public sealed class WindowsScrollSender : IScrollSender
             {
                 mi = new MOUSEINPUT
                 {
-                    // mouseData は符号付き(正 = 奥へ = 上スクロール)を DWORD に詰める。
+                    // mouseData は符号付き(垂直: 正 = 奥へ = 上、水平: 正 = 右)を DWORD に詰める。
                     mouseData = unchecked((uint)wheelDelta),
-                    dwFlags = MouseEventFWheel,
+                    dwFlags = flag,
                 }
             }
         };

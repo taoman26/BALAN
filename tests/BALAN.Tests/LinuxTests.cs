@@ -19,6 +19,24 @@ public class LinuxScrollSenderTests
     private const ushort Wheel = UInputMouse.RelWheel;
 
     [Fact]
+    public void HorizontalUsesHWheelCodesWithOwnRemainder()
+    {
+        var sink = new FakeSink();
+        var sender = new LinuxScrollSender(() => sink);
+        sender.SendHorizontal(90);
+        sender.SendVertical(60); // 垂直の端数と混ざらない
+        sender.SendHorizontal(90);
+        var codes = sink.Events.Where(e => e.Type == Rel).Select(e => (e.Code, e.Value)).ToArray();
+        Assert.Equal(new (ushort, int)[]
+        {
+            (UInputMouse.RelHWheelHiRes, 90),
+            (HiRes, 60),
+            (UInputMouse.RelHWheelHiRes, 90),
+            (UInputMouse.RelHWheel, 1),
+        }, codes);
+    }
+
+    [Fact]
     public void SendsHiResEveryTimeAndSynReport()
     {
         var sink = new FakeSink();

@@ -31,8 +31,10 @@ internal sealed class UInputMouse : IInputEventSink
     public const ushort EvRel = 0x02;
     public const ushort RelX = 0x00;
     public const ushort RelY = 0x01;
+    public const ushort RelHWheel = 0x06;
     public const ushort RelWheel = 0x08;
     public const ushort RelWheelHiRes = 0x0B;
+    public const ushort RelHWheelHiRes = 0x0C;
     public const ushort BtnLeft = 0x110;
     public const ushort BtnRight = 0x111;
     public const ushort BtnMiddle = 0x112;
@@ -69,7 +71,7 @@ internal sealed class UInputMouse : IInputEventSink
                 Ioctl(fd, UiSetKeyBit, key);
             }
 
-            foreach (var rel in new[] { RelX, RelY, RelWheel, RelWheelHiRes })
+            foreach (var rel in new[] { RelX, RelY, RelWheel, RelWheelHiRes, RelHWheel, RelHWheelHiRes })
             {
                 Ioctl(fd, UiSetRelBit, rel);
             }

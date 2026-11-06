@@ -23,7 +23,10 @@ dotnet run --project src/BALAN.App -- --simulate   # 模擬ボードで画面と
 1. Connect を押し、ボードの赤い SYNC ボタン(電池ボックス内)を押す
 2. 足をボードに載せた状態(押さずに)で **Calibrate**(無操作時の荷重を 0 kg にする)
 3. 右足で TR / BR を踏むと上 / 下にスクロール、左足で TL / BL を踏むとブレーキ
-4. ウィンドウを閉じる/最小化するとトレイに常駐(終了はトレイメニューの Exit)
+4. 設定の **Scroll Mode** で方式を選べます(次回起動時も保持)
+   - **Vertical**(既定): 上記の巡航スクロール
+   - **Horizontal**: チルトホイール的な左右スクロール。右足(TR / BR)= 右、左足(TL / BL)= 左。ブレーキは使わず、離せば停止。荷重 → 速度の計算は Vertical と共通
+5. ウィンドウを閉じる/最小化するとトレイに常駐(終了はトレイメニューの Exit)
 
 起動オプション: `--simulate` `--minimized` `--no-tray` `--no-autoconnect`
 
