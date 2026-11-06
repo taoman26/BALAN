@@ -28,6 +28,8 @@ dotnet run --project src/BALAN.App -- --simulate   # 模擬ボードで画面と
    - **Horizontal**: チルトホイール的な左右スクロール。右足(TR / BR)= 右、左足(TL / BL)= 左。ブレーキは使わず、離せば停止。荷重 → 速度の計算は Vertical と共通
 5. ウィンドウを閉じる/最小化するとトレイに常駐(終了はトレイメニューの Exit)
 
+二重起動はできません。既に起動している場合、2 つ目は何も表示せずに終了します(トレイに常駐しているものを使ってください)。
+
 起動オプション: `--simulate` `--minimized` `--no-tray` `--no-autoconnect`
 
 ### Linux
