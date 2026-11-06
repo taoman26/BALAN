@@ -1,7 +1,7 @@
 """BALAN デスクトップ画面モック (Phase 1)。Avalonia へ移しやすいよう、矩形・テキスト・スライダーのみで構成する。
 
-    python3 docs/gen_mock.py            # docs/mock_main.png (状態: Medium)
-    python3 docs/gen_mock.py --states   # docs/mock_states.png (Stopped / Slow / Medium / Fast / Disconnected)
+    python3 docs/gen_mock.py            # docs/mock_main.png (Vertical、状態: Medium) と docs/mock_horizontal.png (Horizontal)
+    python3 docs/gen_mock.py --states   # docs/mock_states.png (Vertical: Stopped / Slow / Medium / Fast / Brake、Horizontal: Left / Right、Disconnected)
 """
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ FM = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 def font(p, s): return ImageFont.truetype(p, int(s * 2))
 
 S = 2  # supersampling
-W, H = 900, 690
+W, H = 900, 744
 
 # 配色 (Styles/BalanTheme.axaml と共通)
 BG, TITLE, PANEL, FIELD, BORDER = "#1b1c21", "#141519", "#24262d", "#17181d", "#3a3d4a"
@@ -31,7 +31,7 @@ def lerp_hex(a, b, t):
     return "#%02x%02x%02x" % tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
-def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxspeed=15, brake=0.6, name="mock_main.png"):
+def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxspeed=15, brake=0.6, horizontal=False, name="mock_main.png"):
     img = Image.new("RGB", (W * S, H * S), BG)
     d = ImageDraw.Draw(img)
 
@@ -94,8 +94,11 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
     t(px1-20, py0+104, "kg", font(F, 9), DIM, "ra")
 
     # ---- ペダル: 何 kg で効くか ----
-    up, down, brk = weights["TR"], weights["BR"], max(weights["TL"], weights["BL"])
-    t(44, py1-86, "PEDALS", font(FB, 10), DIM)
+    if horizontal:  # 右足 = 右(正)、左足 = 左(負)、ブレーキなし
+        up, down, brk = max(weights["TR"], weights["BR"]), max(weights["TL"], weights["BL"]), 0.0
+    else:
+        up, down, brk = weights["TR"], weights["BR"], max(weights["TL"], weights["BL"])
+    t(44, py1-86 if not horizontal else py1-66, "PEDALS", font(FB, 10), DIM)
     meter_max = max(full, brake_kg) * 1.25
     def meter(y, label, val, thr, col, color_label):
         t(44, y, label, font(FB, 9), color_label, "lm")
@@ -107,15 +110,19 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
         x = mx0 + (mx1-mx0)*thr/meter_max
         d.line([x*S, (y-10)*S, x*S, (y+10)*S], fill=TXT, width=2*S)
         t(416, y, f"{val:.1f} kg" if connected else "-- kg", font(FM, 11), TXT, "rm")
-    meter(py1-62, "TR  ▲ UP", up, dead, GO, GO)
-    meter(py1-40, "BR  ▼ DOWN", down, dead, GO, GO)
-    meter(py1-18, "TL/BL  BRAKE", brk, brake_kg, BRAKE, BRAKE)
+    if horizontal:
+        meter(py1-42, "TR/BR  ▶ RIGHT", up, dead, GO, GO)
+        meter(py1-20, "TL/BL  ◀ LEFT", down, dead, GO, GO)
+    else:
+        meter(py1-62, "TR  ▲ UP", up, dead, GO, GO)
+        meter(py1-40, "BR  ▼ DOWN", down, dead, GO, GO)
+        meter(py1-18, "TL/BL  BRAKE", brk, brake_kg, BRAKE, BRAKE)
 
     # ---- Cruise (巡航速度) ----
     cx0, cy0, cx1, cy1 = 456, 100, 876, 372
     panel(cx0, cy0, cx1, cy1, "CRUISE")
     force = max(up, down)
-    braking = connected and brk >= brake_kg
+    braking = connected and not horizontal and brk >= brake_kg
     if not connected or braking or force <= dead:
         level, speed = "Stopped", 0.0
     else:
@@ -125,7 +132,7 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
         level = "Slow" if eff < dead+1 else "Medium" if eff < dead+2 else "Fast"
     col = LEVEL_COLOR[level]
     t(cx0+24, cy0+40, level, font(FB, 34), col)
-    direction = "up" if up > down else "down"
+    direction = ("right" if up > down else "left") if horizontal else ("up" if up > down else "down")
     t(cx0+24, cy0+88, f"Scrolling {direction}" if speed > 0 else ("Braking" if braking else "Idle  -  nothing happens"), font(F, 10), DIM)
     t(cx1-24, cy0+44, f"{speed:4.1f}", font(FB, 28), TXT, "ra")
     t(cx1-24, cy0+82, "notches / s", font(F, 9), DIM, "ra")
@@ -148,31 +155,44 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
     t(sx1, by2+20, f"{maxspeed} max", font(F, 8), DIM, "ra")
 
     # ---- Settings ----
-    sx0_, sy0_, sx1_, sy1_ = 24, 388, 876, 638
+    sx0_, sy0_, sx1_, sy1_ = 24, 388, 876, 694
     panel(sx0_, sy0_, sx1_, sy1_, "SENSITIVITY")
-    def slider(y, name, val, vmin, vmax, text, hint):
-        t(sx0_+24, y, name, font(F, 11), TXT, "lm")
+    def slider(y, name, val, vmin, vmax, text, hint, enabled=True):
+        tc, ac, dc = (TXT, ACC, DIM) if enabled else ("#5a5e70", "#3a3d4a", "#5a5e70")
+        t(sx0_+24, y, name, font(F, 11), tc, "lm")
         tx0, tx1 = sx0_+190, sx0_+560
         rr(tx0, y-3, tx1, y+3, FIELD, BORDER, 3)
         f = (val-vmin)/(vmax-vmin)
-        rr(tx0, y-3, tx0+(tx1-tx0)*f, y+3, ACC, None, 3)
-        dot(tx0+(tx1-tx0)*f, y, 8, TXT, ACC)
+        rr(tx0, y-3, tx0+(tx1-tx0)*f, y+3, ac, None, 3)
+        dot(tx0+(tx1-tx0)*f, y, 8, tc if enabled else "#4a4d5a", ac)
         rr(tx1+20, y-13, tx1+90, y+13, FIELD, BORDER, 4)
-        t(tx1+55, y, text, font(FM, 11), TXT, "mm")
-        t(tx1+104, y, hint, font(F, 9), DIM, "lm")
+        t(tx1+55, y, text, font(FM, 11), tc, "mm")
+        t(tx1+104, y, hint, font(F, 9), dc, "lm")
     slider(sy0_+54, "Dead Zone", dead, 0.5, 4.0, f"{dead:.1f} kg", "no reaction below this load")
     slider(sy0_+92, "Max Speed", maxspeed, 2, 40, f"{maxspeed}", "notches / s at full load")
-    slider(sy0_+130, "Brake Threshold", brake_kg, 1.0, 8.0, f"{brake_kg:.1f} kg", "TL / BL load that brakes")
-    slider(sy0_+168, "Brake Strength", brake, 0.0, 1.0, f"{brake:.2f}", "how fast the brake stops")
+    slider(sy0_+130, "Brake Threshold", brake_kg, 1.0, 8.0, f"{brake_kg:.1f} kg", "TL / BL load that brakes", not horizontal)
+    slider(sy0_+168, "Brake Strength", brake, 0.0, 1.0, f"{brake:.2f}", "how fast the brake stops", not horizontal)
     d.line([(sx0_+16)*S, (sy0_+194)*S, (sx1_-16)*S, (sy0_+194)*S], fill=BORDER, width=S)
-    # Calibrate
-    rr(sx0_+24, sy0_+202, sx0_+150, sy0_+234, ACC, None, 6)
-    t(sx0_+87, sy0_+218, "Calibrate", font(FB, 12), "white", "mm")
-    t(sx0_+166, sy0_+218, "Rest your feet on the board (no pressing), then press.", font(F, 9), DIM, "lm")
-    # Scroll output スイッチ
-    rr(sx1_-196, sy0_+206, sx1_-156, sy0_+228, GREEN if connected else BORDER, None, 11)
-    dot(sx1_-167 if connected else sx1_-185, sy0_+217, 8, "white")
-    t(sx1_-146, sy0_+217, "Scroll output", font(F, 11), TXT, "lm")
+    # Scroll Mode(ラジオボタン)
+    my = sy0_+216
+    t(sx0_+24, my, "Scroll Mode", font(F, 11), TXT, "lm")
+    for i, (label, on) in enumerate([("Vertical", not horizontal), ("Horizontal", horizontal)]):
+        rx = sx0_+190 + i*100
+        dot(rx, my, 8, FIELD, ACC if on else DIM)
+        if on:
+            dot(rx, my, 4, ACC)
+        t(rx+16, my, label, font(F, 11), TXT, "lm")
+    t(sx0_+400, my, "Horizontal: right foot = right, left foot = left (no brake)", font(F, 9), DIM, "lm")
+    # Calibrate / Scroll output / Connect
+    cy = sy0_+264
+    rr(sx0_+24, cy-16, sx0_+150, cy+16, ACC, None, 6)
+    t(sx0_+87, cy, "Calibrate", font(FB, 12), "white", "mm")
+    t(sx0_+166, cy, "Rest your feet on the board (no pressing), then press.", font(F, 9), DIM, "lm")
+    rr(sx1_-340, cy-11, sx1_-300, cy+11, GREEN if connected else BORDER, None, 11)
+    dot(sx1_-311 if connected else sx1_-329, cy, 8, "white")
+    t(sx1_-290, cy, "Scroll output", font(F, 11), TXT, "lm")
+    rr(sx1_-134, cy-16, sx1_-24, cy+16, "#353847", BORDER, 6)
+    t(sx1_-79, cy, "Disconnect" if connected else "Connect", font(FB, 11), TXT, "mm")
 
     # ---- フッター ----
     rect(0, H-34, W, H, TITLE)
@@ -180,7 +200,7 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
     dot(20, H-17, 4, GREEN if connected else RED)
     t(32, H-17, "Running in system tray  ·  closing this window keeps BALAN active" if connected
       else "Step on the board and press the red SYNC button  ·  waiting for Balance Board", font(F, 9), DIM, "lm")
-    t(W-20, H-17, "Settings saved", font(F, 9), DIM, "rm")
+    t(W-20, H-17, "Settings saved automatically", font(F, 9), DIM, "rm")
     # 最後に 900x650 へ縮小
     img = img.resize((W, H), Image.LANCZOS)
     img.save(OUT / name)
@@ -188,6 +208,7 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
 
 
 MAIN = dict(weights={"TL": 0.3, "TR": 0.3, "BL": 0.3, "BR": 3.5})
+HORIZONTAL = dict(weights={"TL": 0.3, "TR": 3.5, "BL": 0.3, "BR": 0.3}, horizontal=True)
 
 if __name__ == "__main__":
     if "--states" in sys.argv:
@@ -197,14 +218,17 @@ if __name__ == "__main__":
             ("Medium", MAIN),
             ("Fast", dict(weights={"TL": 0.3, "TR": 0.3, "BL": 0.3, "BR": 4.8})),
             ("Brake", dict(weights={"TL": 0.3, "TR": 0.3, "BL": 5.6, "BR": 4.5})),
+            ("Horizontal: right", HORIZONTAL),
+            ("Horizontal: left", dict(weights={"TL": 0.3, "TR": 0.3, "BL": 4.8, "BR": 0.3}, horizontal=True)),
             ("Disconnected", dict(connected=False)),
         ]
-        sheet = Image.new("RGB", (W*2 + 30, H*3 + 40), "#0c0c0f")
+        sheet = Image.new("RGB", (W*2 + 30, H*4 + 50), "#0c0c0f")
         for i, (n, kw) in enumerate(cases):
-            im = render(name=f"_tmp_{n}.png", **kw)
+            im = render(name=f"_tmp_{i}.png", **kw)
             sheet.paste(im, (10 + (i % 2)*(W+10), 10 + (i // 2)*(H+10)))
-            (OUT / f"_tmp_{n}.png").unlink()
+            (OUT / f"_tmp_{i}.png").unlink()
         sheet.save(OUT / "mock_states.png")
     else:
         render(**MAIN)
+        render(name="mock_horizontal.png", **HORIZONTAL)
     print("ok")

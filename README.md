@@ -6,9 +6,9 @@ Wii Balance Board を「足で速度を制御する巡航スクロール」に�
 
 BALAN には **Scroll Mode が 2 つ**あります(画面の Scroll Mode で切り替え。設定は保存され、既定は Vertical)。
 
-![screenshot](docs/screenshot_main.png)
-
 ### Vertical モード(既定)— 巡航スクロール
+
+![Vertical](docs/screenshot_main.png)
 
 > **右足で進む。左足で止まる。**
 
@@ -17,6 +17,8 @@ BALAN には **Scroll Mode が 2 つ**あります(画面の Scroll Mode で切�
 - 何も踏まなければ停止。センサー途絶・切断でも停止
 
 ### Horizontal モード — 左右スクロール(チルトホイール)
+
+![Horizontal](docs/screenshot_horizontal.png)
 
 > **右足で右へ。左足で左へ。**
 
