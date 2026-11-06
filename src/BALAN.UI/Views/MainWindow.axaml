@@ -96,17 +96,17 @@
           <!-- ペダル: 何 kg で効くかを見る -->
           <TextBlock Text="PEDALS" FontWeight="Bold" Classes="dim" Margin="0,4,0,0" />
           <Grid ColumnDefinitions="96,*,64" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
-            <TextBlock Grid.Row="0" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GoBrush}" Text="TR  ▲ UP" />
+            <TextBlock Grid.Row="0" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GoBrush}" Text="{Binding PositiveLabel}" />
             <ctl:ForceMeter Grid.Row="0" Grid.Column="1" Value="{Binding ForceUp}" Maximum="{Binding MeterMaxKg}" Threshold="{Binding DeadZone}" Fill="{StaticResource GoBrush}" />
             <TextBlock Grid.Row="0" Grid.Column="2" Classes="mono" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding ForceUp, StringFormat='{}{0:0.0} kg'}" />
 
-            <TextBlock Grid.Row="1" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GoBrush}" Text="BR  ▼ DOWN" />
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GoBrush}" Text="{Binding NegativeLabel}" />
             <ctl:ForceMeter Grid.Row="1" Grid.Column="1" Value="{Binding ForceDown}" Maximum="{Binding MeterMaxKg}" Threshold="{Binding DeadZone}" Fill="{StaticResource GoBrush}" />
             <TextBlock Grid.Row="1" Grid.Column="2" Classes="mono" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding ForceDown, StringFormat='{}{0:0.0} kg'}" />
 
-            <TextBlock Grid.Row="2" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource BrakeBrush}" Text="TL/BL  BRAKE" />
-            <ctl:ForceMeter Grid.Row="2" Grid.Column="1" Value="{Binding ForceBrake}" Maximum="{Binding MeterMaxKg}" Threshold="{Binding BrakeLoadKg}" Fill="{StaticResource BrakeBrush}" />
-            <TextBlock Grid.Row="2" Grid.Column="2" Classes="mono" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding ForceBrake, StringFormat='{}{0:0.0} kg'}" />
+            <TextBlock Grid.Row="2" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" Foreground="{StaticResource BrakeBrush}" Text="TL/BL  BRAKE" IsVisible="{Binding IsVertical}" />
+            <ctl:ForceMeter Grid.Row="2" Grid.Column="1" IsVisible="{Binding IsVertical}" Value="{Binding ForceBrake}" Maximum="{Binding MeterMaxKg}" Threshold="{Binding BrakeLoadKg}" Fill="{StaticResource BrakeBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Classes="mono" HorizontalAlignment="Right" VerticalAlignment="Center" IsVisible="{Binding IsVertical}" Text="{Binding ForceBrake, StringFormat='{}{0:0.0} kg'}" />
           </Grid>
         </StackPanel>
       </Border>
@@ -160,18 +160,26 @@
             <TextBlock Grid.Row="1" Grid.Column="2" Classes="mono" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding MaxSpeed, StringFormat='{}{0:0}'}" />
             <TextBlock Grid.Row="1" Grid.Column="3" Classes="dim" VerticalAlignment="Center" Text="notches / s at full load" />
 
-            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Brake Threshold" />
-            <Slider Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="8" Value="{Binding BrakeLoadKg}" />
+            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="Brake Threshold" IsEnabled="{Binding IsVertical}" />
+            <Slider Grid.Row="2" Grid.Column="1" IsEnabled="{Binding IsVertical}" Minimum="1" Maximum="8" Value="{Binding BrakeLoadKg}" />
             <TextBlock Grid.Row="2" Grid.Column="2" Classes="mono" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding BrakeLoadKg, StringFormat='{}{0:0.0} kg'}" />
             <TextBlock Grid.Row="2" Grid.Column="3" Classes="dim" VerticalAlignment="Center" Text="TL / BL load that brakes" />
 
-            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Brake Strength" />
-            <Slider Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding BrakeStrength}" />
+            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Brake Strength" IsEnabled="{Binding IsVertical}" />
+            <Slider Grid.Row="3" Grid.Column="1" IsEnabled="{Binding IsVertical}" Minimum="0" Maximum="1" Value="{Binding BrakeStrength}" />
             <TextBlock Grid.Row="3" Grid.Column="2" Classes="mono" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding BrakeStrength, StringFormat='{}{0:0.00}'}" />
             <TextBlock Grid.Row="3" Grid.Column="3" Classes="dim" VerticalAlignment="Center" Text="how fast the brake stops" />
           </Grid>
 
           <Border Height="1" Background="{StaticResource BorderBrush2}" Margin="0,4" />
+
+          <Grid ColumnDefinitions="150,Auto,Auto,*">
+            <TextBlock VerticalAlignment="Center" Text="Scroll Mode" />
+            <RadioButton Grid.Column="1" GroupName="ScrollMode" Content="Vertical" IsChecked="{Binding IsVertical}" Margin="0,0,16,0" />
+            <RadioButton Grid.Column="2" GroupName="ScrollMode" Content="Horizontal" IsChecked="{Binding IsHorizontal}" />
+            <TextBlock Grid.Column="3" Classes="dim" VerticalAlignment="Center" Margin="16,0,0,0"
+                       Text="Horizontal: right foot = right, left foot = left (no brake)" />
+          </Grid>
 
           <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
             <Button Classes="primary" Width="126" Height="32" Content="{Binding CalibrateButtonText}"

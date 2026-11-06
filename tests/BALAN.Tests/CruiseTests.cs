@@ -210,6 +210,77 @@ public class EngineTests
         Assert.Equal(ScrollDirection.Up, e.Snapshot.Direction);
     }
 
+    private static (BalanEngine engine, FakeClock clock, RecordingSender sender, SettingsService settings) CreateHorizontal()
+    {
+        var r = Create();
+        r.settings.Update(c => c with { ScrollMode = ScrollMode.Horizontal });
+        return r;
+    }
+
+    [Theory]
+    [InlineData(0, 5, 0, 0)] // TR
+    [InlineData(0, 0, 0, 5)] // BR
+    public void HorizontalRightFootScrollsRight(double tl, double tr, double bl, double br)
+    {
+        var (e, clock, sender, _) = CreateHorizontal();
+        Drive(e, clock, new SensorFrame(tl, tr, bl, br), 2);
+        Assert.True(sender.HorizontalTotal > 0);
+        Assert.Empty(sender.Sent); // 垂直には一切送らない
+        Assert.Equal(ScrollDirection.Right, e.Snapshot.Direction);
+        Assert.Equal(CruiseLevel.Fast, e.Snapshot.Level);
+    }
+
+    [Theory]
+    [InlineData(5, 0, 0, 0)] // TL
+    [InlineData(0, 0, 5, 0)] // BL
+    public void HorizontalLeftFootScrollsLeftWithoutBraking(double tl, double tr, double bl, double br)
+    {
+        var (e, clock, sender, _) = CreateHorizontal();
+        Drive(e, clock, new SensorFrame(tl, tr, bl, br), 2);
+        Assert.True(sender.HorizontalTotal < 0);
+        Assert.Empty(sender.Sent);
+        Assert.Equal(ScrollDirection.Left, e.Snapshot.Direction);
+        Assert.False(e.Snapshot.IsBraking); // 5kg は垂直ならブレーキ閾値だが、水平ではブレーキにならない
+    }
+
+    [Fact]
+    public void HorizontalIdleDoesNothingAndStopsWhenReleased()
+    {
+        var (e, clock, sender, _) = CreateHorizontal();
+        Drive(e, clock, new SensorFrame(1, 1, 1, 1), 1);
+        Assert.Empty(sender.SentHorizontal);
+        Drive(e, clock, new SensorFrame(0, 5, 0, 0), 1);
+        Assert.True(e.Snapshot.Speed > 0);
+        Drive(e, clock, new SensorFrame(0, 0, 0, 0), 1);
+        Assert.Equal(0, e.Snapshot.Speed);
+    }
+
+    [Fact]
+    public void HorizontalUsesSameSpeedCurveAsVertical()
+    {
+        var (v, vc, vs, _) = Create();
+        var (h, hc, hs, _) = CreateHorizontal();
+        Drive(v, vc, Tr(3.5), 3);
+        Drive(h, hc, new SensorFrame(0, 3.5, 0, 0), 3);
+        Assert.Equal(v.Snapshot.Speed, h.Snapshot.Speed, 6);
+        Assert.Equal(vs.Total, hs.HorizontalTotal);
+    }
+
+    [Fact]
+    public void SwitchingModeStopsAndRoutesToNewAxis()
+    {
+        var (e, clock, sender, settings) = Create();
+        Drive(e, clock, Tr(5), 1);
+        var vertical = sender.Total;
+        Assert.True(vertical > 0);
+        settings.Update(c => c with { ScrollMode = ScrollMode.Horizontal });
+        Drive(e, clock, new SensorFrame(0, 0, 0, 0), 0.1);
+        Assert.Equal(0, e.Snapshot.Speed);
+        Drive(e, clock, new SensorFrame(0, 5, 0, 0), 1);
+        Assert.Equal(vertical, sender.Total); // 垂直はもう増えない
+        Assert.True(sender.HorizontalTotal > 0);
+    }
+
     [Fact]
     public void LargerOfTrAndBrDecidesDirection()
     {
@@ -341,6 +412,8 @@ public class EngineTests
     private sealed class ThrowingSender : BALAN.Core.Abstractions.IScrollSender
     {
         public void SendVertical(int wheelDelta) => throw new InvalidOperationException();
+
+        public void SendHorizontal(int wheelDelta) => throw new InvalidOperationException();
     }
 }
 
@@ -353,5 +426,29 @@ public class DefaultSettingsTests
         Assert.Equal(2.0, s.DeadZoneKg);
         Assert.Equal(5.0, s.FullLoadKg);
         Assert.Equal(5.0, s.BrakeLoadKg);
+        Assert.Equal(ScrollMode.Vertical, s.ScrollMode);
+    }
+
+    [Fact]
+    public void ScrollModeRoundTripsAndOldFilesDefaultToVertical()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"balan-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new JsonSettingsStore(path);
+            store.Save(new BalanSettings { ScrollMode = ScrollMode.Horizontal });
+            Assert.Contains("Horizontal", File.ReadAllText(path));
+            Assert.Equal(ScrollMode.Horizontal, store.Load().ScrollMode);
+
+            File.WriteAllText(path, "{ \"DeadZoneKg\": 2.5 }"); // 旧バージョンの設定
+            Assert.Equal(ScrollMode.Vertical, store.Load().ScrollMode);
+
+            File.WriteAllText(path, "{ \"ScrollMode\": 99 }");
+            Assert.Equal(ScrollMode.Vertical, store.Load().ScrollMode);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

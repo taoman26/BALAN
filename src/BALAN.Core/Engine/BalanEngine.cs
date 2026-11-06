@@ -40,6 +40,7 @@ public sealed class BalanEngine
     private bool _filterNeedsReset = true;
     private TimeSpan _lastTick;
     private double _wheelRemainder;
+    private ScrollMode _mode = ScrollMode.Vertical;
 
     private TaskCompletionSource<CalibrationResult>? _calibration;
     private TimeSpan _calibrationEnd;
@@ -159,6 +160,7 @@ public sealed class BalanEngine
     {
         EngineSnapshot snapshot;
         int wheel = 0;
+        var horizontal = false;
         TaskCompletionSource<CalibrationResult>? finished;
         CalibrationResult finishedResult;
         double[]? finishedTare;
@@ -168,6 +170,14 @@ public sealed class BalanEngine
             var dt = (now - _lastTick).TotalSeconds;
             _lastTick = now;
             var settings = _settings.Current;
+
+            if (settings.ScrollMode != _mode)
+            {
+                // 方式を切り替えたら、前の方式の速度・端数を持ち越さない(別の軸へ流れ込まないように)。
+                _mode = settings.ScrollMode;
+                _cruise.Reset();
+                _wheelRemainder = 0;
+            }
 
             var hasData = _frame is not null && now - _frameAt <= StaleAfter;
             if (!hasData)
@@ -183,17 +193,17 @@ public sealed class BalanEngine
                 // キャリブレーション中は動かさない(足を置いている最中の誤スクロール防止)。
                 _cruise.Reset();
                 _wheelRemainder = 0;
-                snapshot = Build(hasData, PedalForces.Tare(smoothed, settings));
+                snapshot = Build(hasData, PedalForces.Tare(smoothed, settings), settings.ScrollMode);
             }
             else
             {
                 var tared = PedalForces.Tare(smoothed, settings);
-                var forces = PedalForces.From(tared);
+                var forces = PedalForces.From(tared, settings.ScrollMode); // 荷重 → 速度の計算は両方式で共通
                 _cruise.Update(forces, hasData, dt, settings);
 
                 if (settings.ScrollEnabled && _cruise.Speed > 0)
                 {
-                    // 上 = 正、下 = 負のホイール値。端数は持ち越して、低速でも滑らかに進める。
+                    // 正方向(垂直=上 / 水平=右)= 正、負方向(下 / 左)= 負のホイール値。端数は持ち越して、低速でも滑らかに進める。
                     var sign = _cruise.Direction == ScrollDirection.Up ? 1 : -1;
                     _wheelRemainder += sign * _cruise.Speed * 120 * Math.Clamp(dt, 0, 0.1);
                     var quanta = (int)(Math.Abs(_wheelRemainder) / settings.WheelGranularity);
@@ -201,6 +211,7 @@ public sealed class BalanEngine
                     {
                         wheel = sign * quanta * settings.WheelGranularity;
                         _wheelRemainder -= wheel;
+                        horizontal = settings.ScrollMode == ScrollMode.Horizontal;
                     }
                 }
                 else
@@ -208,7 +219,7 @@ public sealed class BalanEngine
                     _wheelRemainder = 0;
                 }
 
-                snapshot = Build(hasData, tared);
+                snapshot = Build(hasData, tared, settings.ScrollMode);
             }
 
             _snapshot = snapshot;
@@ -244,7 +255,15 @@ public sealed class BalanEngine
         {
             try
             {
-                _sender.SendVertical(wheel);
+                // 送出する軸だけが方式で分かれる。速度の計算は共通。
+                if (horizontal)
+                {
+                    _sender.SendHorizontal(wheel);
+                }
+                else
+                {
+                    _sender.SendVertical(wheel);
+                }
             }
             catch (Exception ex)
             {
@@ -273,12 +292,20 @@ public sealed class BalanEngine
         }
     }
 
-    private EngineSnapshot Build(bool hasData, SensorFrame tared)
+    private EngineSnapshot Build(bool hasData, SensorFrame tared, ScrollMode mode)
     {
-        var f = PedalForces.From(tared);
+        var f = PedalForces.From(tared, mode);
+        var direction = mode == ScrollMode.Horizontal
+            ? _cruise.Direction switch
+            {
+                ScrollDirection.Up => ScrollDirection.Right,
+                ScrollDirection.Down => ScrollDirection.Left,
+                var d => d,
+            }
+            : _cruise.Direction;
         return new EngineSnapshot(
             hasData ? tared : null, hasData, f.Up, f.Down, f.Brake,
-            _cruise.Speed, _cruise.Direction, _cruise.Level, _cruise.IsBraking);
+            _cruise.Speed, direction, _cruise.Level, _cruise.IsBraking);
     }
 
     private void RunCalibration(TimeSpan now, bool hasData, SensorFrame smoothed)

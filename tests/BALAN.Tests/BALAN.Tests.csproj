@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\BALAN.Device\BALAN.Device.csproj" />
     <ProjectReference Include="..\..\src\BALAN.Input\BALAN.Input.csproj" />
     <ProjectReference Include="..\..\src\BALAN.UI\BALAN.UI.csproj" />
+    <ProjectReference Include="..\..\src\BALAN.App\BALAN.App.csproj" />
   </ItemGroup>
 
 </Project>

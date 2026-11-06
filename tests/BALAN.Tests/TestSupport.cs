@@ -15,9 +15,15 @@ internal sealed class RecordingSender : IScrollSender
 {
     public List<int> Sent { get; } = new();
 
+    public List<int> SentHorizontal { get; } = new();
+
     public int Total => Sent.Sum();
 
+    public int HorizontalTotal => SentHorizontal.Sum();
+
     public void SendVertical(int wheelDelta) => Sent.Add(wheelDelta);
+
+    public void SendHorizontal(int wheelDelta) => SentHorizontal.Add(wheelDelta);
 }
 
 internal sealed class MemoryStore : ISettingsStore

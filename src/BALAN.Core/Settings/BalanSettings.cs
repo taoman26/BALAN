@@ -1,5 +1,15 @@
 namespace BALAN.Core.Settings;
 
+/// <summary>スクロールの方式。</summary>
+public enum ScrollMode
+{
+    /// <summary>垂直の巡航スクロール。右足 = 加速(TR 上 / BR 下)、左足 = ブレーキ。</summary>
+    Vertical,
+
+    /// <summary>水平(チルトホイール)スクロール。右足(TR / BR)= 右、左足(TL / BL)= 左。ブレーキは使わない。</summary>
+    Horizontal
+}
+
 /// <summary>ユーザー設定(JSON で保存)。荷重はすべて kg(ボード内蔵の較正済みの値)。</summary>
 public sealed record BalanSettings
 {
@@ -19,6 +29,9 @@ public sealed record BalanSettings
 
     /// <summary>ブレーキの効きの強さ 0.0〜1.0(大きいほど速く止まる)。</summary>
     public double BrakeStrength { get; init; } = 0.6;
+
+    /// <summary>スクロールの方式(既定は垂直)。</summary>
+    public ScrollMode ScrollMode { get; init; } = ScrollMode.Vertical;
 
     /// <summary>スクロール送出の ON/OFF(OFF なら画面表示のみ)。</summary>
     public bool ScrollEnabled { get; init; } = true;
@@ -50,6 +63,7 @@ public sealed record BalanSettings
             TareTopRight = Math.Clamp(Sanitize(TareTopRight, 0), 0, 10),
             TareBottomLeft = Math.Clamp(Sanitize(TareBottomLeft, 0), 0, 10),
             TareBottomRight = Math.Clamp(Sanitize(TareBottomRight, 0), 0, 10),
+            ScrollMode = Enum.IsDefined(ScrollMode) ? ScrollMode : ScrollMode.Vertical,
             WheelGranularity = Math.Clamp(WheelGranularity, 1, 120),
         };
     }

@@ -5,7 +5,11 @@ namespace BALAN.Core.Settings;
 /// <summary>設定の JSON ファイル保存。書き込み途中のクラッシュで壊れないよう、一時ファイル経由で置き換える。</summary>
 public sealed class JsonSettingsStore : ISettingsStore
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
 
     private readonly string _path;
 

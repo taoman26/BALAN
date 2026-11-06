@@ -27,6 +27,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     private double _maxSpeed;
     private double _brakeStrength;
     private bool _scrollEnabled;
+    private bool _horizontal;
     private bool _isCalibrating;
     private string? _message;
 
@@ -42,11 +43,12 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _maxSpeed = s.MaxSpeed;
         _brakeStrength = s.BrakeStrength;
         _scrollEnabled = s.ScrollEnabled;
+        _horizontal = s.ScrollMode == ScrollMode.Horizontal;
         _state = board.State;
         _batteryPercent = board.BatteryPercent;
 
         // 画面 → 設定(即時に巡航へ反映)。保存はまとめて遅延させる。
-        _subscriptions.Add(this.WhenAnyValue(x => x.DeadZone, x => x.MaxSpeed, x => x.BrakeStrength, x => x.ScrollEnabled, x => x.BrakeLoadKg)
+        _subscriptions.Add(this.WhenAnyValue(x => x.DeadZone, x => x.MaxSpeed, x => x.BrakeStrength, x => x.ScrollEnabled, x => x.BrakeLoadKg, x => x.IsHorizontal)
             .Skip(1)
             .Subscribe(t => _settings.Update(c => c with
             {
@@ -54,7 +56,8 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
                 MaxSpeed = t.Item2,
                 BrakeStrength = t.Item3,
                 ScrollEnabled = t.Item4,
-                BrakeLoadKg = t.Item5
+                BrakeLoadKg = t.Item5,
+                ScrollMode = t.Item6 ? ScrollMode.Horizontal : ScrollMode.Vertical
             })));
 
         // 設定 → 保存(Phase 7)。スライダーを動かしている間は書き込まず、止めて 0.5 秒後に 1 回だけ保存する。
@@ -225,10 +228,47 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         !IsConnected ? "Waiting for Balance Board"
         : !HasData ? "No sensor data"
         : _snapshot.IsBraking ? "Braking"
-        : Speed > 0 ? $"Scrolling {(_snapshot.Direction == ScrollDirection.Up ? "up" : "down")}{(_scrollEnabled ? string.Empty : "  (output off)")}"
+        : Speed > 0 ? $"Scrolling {DirectionText}{(_scrollEnabled ? string.Empty : "  (output off)")}"
         : "Idle  -  nothing happens";
 
+    private string DirectionText => _snapshot.Direction switch
+    {
+        ScrollDirection.Up => "up",
+        ScrollDirection.Down => "down",
+        ScrollDirection.Left => "left",
+        ScrollDirection.Right => "right",
+        _ => string.Empty,
+    };
+
     // ----- 設定 -----
+
+    /// <summary>Scroll Mode。true = 水平(チルト)、false = 垂直(巡航)。</summary>
+    public bool IsHorizontal
+    {
+        get => _horizontal;
+        set
+        {
+            if (_horizontal == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _horizontal, value);
+            this.RaisePropertyChanged(nameof(IsVertical));
+            this.RaisePropertyChanged(nameof(PositiveLabel));
+            this.RaisePropertyChanged(nameof(NegativeLabel));
+        }
+    }
+
+    public bool IsVertical
+    {
+        get => !_horizontal;
+        set => IsHorizontal = !value;
+    }
+
+    /// <summary>PEDALS の 1 行目・2 行目の見出し(方式で変わる)。3 行目のブレーキは垂直のみ。</summary>
+    public string PositiveLabel => _horizontal ? "TR/BR  ▶ RIGHT" : "TR  ▲ UP";
+    public string NegativeLabel => _horizontal ? "TL/BL  ◀ LEFT" : "BR  ▼ DOWN";
 
     public double DeadZone
     {
@@ -290,7 +330,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     });
 
     public string TrayToolTip => IsConnected
-        ? $"BALAN - {LevelText}{(Speed > 0 ? $" {(_snapshot.Direction == ScrollDirection.Up ? "up" : "down")} ({Speed:0.0}/s)" : string.Empty)}"
+        ? $"BALAN - {LevelText}{(Speed > 0 ? $" {DirectionText} ({Speed:0.0}/s)" : string.Empty)}"
         : $"BALAN - {StatusText}";
 
     // ----- コマンド・要求 -----

@@ -18,6 +18,7 @@ public sealed class LinuxScrollSender : IScrollSender, IDisposable
     private readonly object _gate = new();
     private IInputEventSink? _device;
     private int _lowResRemainder;
+    private int _hLowResRemainder;
     private bool _disposed;
 
     public LinuxScrollSender()
@@ -31,7 +32,14 @@ public sealed class LinuxScrollSender : IScrollSender, IDisposable
     }
 
     /// <exception cref="IOException">/dev/uinput を開けない(権限・モジュール未ロード)。設定手順がメッセージに含まれる。</exception>
-    public void SendVertical(int wheelDelta)
+    public void SendVertical(int wheelDelta) =>
+        SendWheel(wheelDelta, UInputMouse.RelWheelHiRes, UInputMouse.RelWheel, ref _lowResRemainder);
+
+    /// <summary>水平スクロール(REL_HWHEEL / REL_HWHEEL_HI_RES)。正 = 右。</summary>
+    public void SendHorizontal(int wheelDelta) =>
+        SendWheel(wheelDelta, UInputMouse.RelHWheelHiRes, UInputMouse.RelHWheel, ref _hLowResRemainder);
+
+    private void SendWheel(int wheelDelta, ushort hiResCode, ushort lowResCode, ref int lowResRemainder)
     {
         if (wheelDelta == 0)
         {
@@ -43,14 +51,14 @@ public sealed class LinuxScrollSender : IScrollSender, IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             _device ??= _deviceFactory();
 
-            _device.Write(UInputMouse.EvRel, UInputMouse.RelWheelHiRes, wheelDelta);
+            _device.Write(UInputMouse.EvRel, hiResCode, wheelDelta);
 
-            _lowResRemainder += wheelDelta;
-            var notches = _lowResRemainder / 120;
+            lowResRemainder += wheelDelta;
+            var notches = lowResRemainder / 120;
             if (notches != 0)
             {
-                _lowResRemainder -= notches * 120;
-                _device.Write(UInputMouse.EvRel, UInputMouse.RelWheel, notches);
+                lowResRemainder -= notches * 120;
+                _device.Write(UInputMouse.EvRel, lowResCode, notches);
             }
 
             _device.Write(UInputMouse.EvSyn, 0, 0); // SYN_REPORT
