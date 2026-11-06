@@ -4,13 +4,29 @@
 
 Wii Balance Board を「足で速度を制御する巡航スクロール」に使う常駐アプリ(Windows / Linux)。座って、足でボードの隅を踏んで操作する。
 
-> **右足で進む。左足で止まる。**
+BALAN には **Scroll Mode が 2 つ**あります(画面の Scroll Mode で切り替え。設定は保存され、既定は Vertical)。
 
-![screenshot](docs/screenshot_main.png)
+### Vertical モード(既定)— 巡航スクロール
+
+![Vertical](docs/screenshot_main.png)
+
+> **右足で進む。左足で止まる。**
 
 - 右足: **TR = 上スクロール / BR = 下スクロール**(荷重が大きい方が勝つ)。2 kg 未満は無反応、2〜3 kg Slow、3〜4 kg Medium、4 kg 以上 Fast。速度はなめらかなカーブで上がる
 - 左足: **TL または BL が 5 kg 以上でブレーキ(既定。画面で調整可)**(アクセルより優先)
 - 何も踏まなければ停止。センサー途絶・切断でも停止
+
+### Horizontal モード — 左右スクロール(チルトホイール)
+
+![Horizontal](docs/screenshot_horizontal.png)
+
+> **右足で右へ。左足で左へ。**
+
+- 右足: **TR または BR = 右スクロール**(大きい方)
+- 左足: **TL または BL = 左スクロール**(大きい方)
+- 速度は Vertical と同じ(2 kg 未満は無反応、2〜3 kg Slow、3〜4 kg Medium、4 kg 以上 Fast。なめらかなカーブ)
+- ブレーキはなし。足を離せば止まる。センサー途絶・切断でも停止
+
 - 設計・モック・リスク: [docs/DESIGN.md](docs/DESIGN.md)
 
 ## 使い方
@@ -27,6 +43,8 @@ dotnet run --project src/BALAN.App -- --simulate   # 模擬ボードで画面と
    - **Vertical**(既定): 上記の巡航スクロール
    - **Horizontal**: チルトホイール的な左右スクロール。右足(TR / BR)= 右、左足(TL / BL)= 左。ブレーキは使わず、離せば停止。荷重 → 速度の計算は Vertical と共通
 5. ウィンドウを閉じる/最小化するとトレイに常駐(終了はトレイメニューの Exit)
+
+二重起動はできません。既に起動している場合、2 つ目は何も表示せずに終了します(トレイに常駐しているものを使ってください)。
 
 起動オプション: `--simulate` `--minimized` `--no-tray` `--no-autoconnect`
 

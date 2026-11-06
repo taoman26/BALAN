@@ -28,12 +28,12 @@ TR と BR は**荷重の大きい方**が勝つ(両方踏んでも迷わない)�
 ## 2. UI モック(Phase 1)
 
 - 生成コード: [`gen_mock.py`](gen_mock.py)(`python3 docs/gen_mock.py` / `--states`)
-- 画像: [`mock_main.png`](mock_main.png)(900×650)、全状態 [`mock_states.png`](mock_states.png)(Stopped / Slow / Medium / Fast / Brake / Disconnected)
-- 実装の描画結果(Avalonia Headless で出力): [`screenshot_main.png`](screenshot_main.png)
+- 画像: [`mock_main.png`](mock_main.png)(Vertical)、[`mock_horizontal.png`](mock_horizontal.png)(Horizontal)、全状態 [`mock_states.png`](mock_states.png)(Vertical: Stopped / Slow / Medium / Fast / Brake、Horizontal: Right / Left、Disconnected)
+- 実装の描画結果(Avalonia Headless で出力): [`screenshot_main.png`](screenshot_main.png)(Vertical)、[`screenshot_horizontal.png`](screenshot_horizontal.png)(Horizontal)
 
 ![mock](mock_main.png)
 
-モックからの実装上の差分は「最小化(トレイへ)」ボタンをヘッダー右に置いたことだけ(タイトルバーは OS 標準)。初版は立って体重移動する「重心」方式だったが、実機で座って足操作する使い方に合わせ、各センサーの荷重(kg)方式に作り直した(PEDALS メーターの白い縦線が反応が始まる荷重)。
+モックからの実装上の差分は「最小化(トレイへ)」ボタンをヘッダー右に置いたことだけ(タイトルバーは OS 標準)。初版は立って体重移動する「重心」方式だったが、実機で座って足操作する使い方に合わせ、各センサーの荷重(kg)方式に作り直した(PEDALS メーターの白い縦線が反応が始まる荷重)。その後、Scroll Mode(Vertical / Horizontal)を追加し、モックも現行の画面に合わせた(Horizontal ではブレーキ行を隠し、Brake の 2 つのスライダーを無効表示にする)。
 
 ## 3. システムアーキテクチャ
 
