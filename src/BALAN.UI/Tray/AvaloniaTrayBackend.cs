@@ -22,12 +22,16 @@ public sealed class AvaloniaTrayBackend : ITrayBackend
         var connect = new NativeMenuItem { Command = viewModel.ConnectCommand };
         connect.Bind(NativeMenuItem.HeaderProperty, new Binding(nameof(MainViewModel.ConnectButtonText)) { Source = viewModel });
 
+        var mode = new NativeMenuItem { Command = viewModel.ToggleScrollModeCommand };
+        mode.Bind(NativeMenuItem.HeaderProperty, new Binding(nameof(MainViewModel.ScrollModeMenuText)) { Source = viewModel });
+
         _icon = new TrayIcon
         {
             Menu = new NativeMenu
             {
                 new NativeMenuItem { Header = "Show BALAN", Command = viewModel.ShowWindowCommand },
                 connect,
+                mode,
                 new NativeMenuItemSeparator(),
                 new NativeMenuItem { Header = "Exit", Command = viewModel.ExitCommand },
             },

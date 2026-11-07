@@ -8,7 +8,7 @@ namespace BALAN.UI.Tray;
 
 /// <summary>
 /// XEmbed 方式のトレイにはメニュー機能が無いため、右クリックで出す簡易メニュー(枠なしの小さなウィンドウ)。
-/// 項目: Show BALAN / Connect(Disconnect)/ Exit。他の場所を操作すると閉じる。
+/// 項目: Show BALAN / Connect(Disconnect)/ Scroll Mode(クリックで切替)/ Exit。他の場所を操作すると閉じる。
 /// </summary>
 public sealed class TrayMenuWindow : Window
 {
@@ -25,6 +25,9 @@ public sealed class TrayMenuWindow : Window
         var connect = MenuButton(string.Empty, viewModel.ConnectCommand);
         connect.Bind(ContentProperty, new Avalonia.Data.Binding(nameof(MainViewModel.ConnectButtonText)) { Source = viewModel });
 
+        var mode = MenuButton(string.Empty, viewModel.ToggleScrollModeCommand);
+        mode.Bind(ContentProperty, new Avalonia.Data.Binding(nameof(MainViewModel.ScrollModeMenuText)) { Source = viewModel });
+
         Content = new Border
         {
             BorderBrush = new SolidColorBrush(Color.Parse("#4A4D5E")),
@@ -32,11 +35,12 @@ public sealed class TrayMenuWindow : Window
             Padding = new Thickness(4),
             Child = new StackPanel
             {
-                MinWidth = 160,
+                MinWidth = 240,
                 Children =
                 {
                     MenuButton("Show BALAN", viewModel.ShowWindowCommand),
                     connect,
+                    mode,
                     new Border { Height = 1, Margin = new Thickness(4, 4), Background = new SolidColorBrush(Color.Parse("#4A4D5E")) },
                     MenuButton("Exit", viewModel.ExitCommand),
                 },
