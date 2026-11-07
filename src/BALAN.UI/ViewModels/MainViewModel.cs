@@ -110,6 +110,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         ShowWindowCommand = ReactiveCommand.Create(() => ShowWindowRequested?.Invoke(this, EventArgs.Empty));
         MinimizeToTrayCommand = ReactiveCommand.Create(() => MinimizeRequested?.Invoke(this, EventArgs.Empty));
         ExitCommand = ReactiveCommand.Create(() => ExitRequested?.Invoke(this, EventArgs.Empty));
+        ToggleScrollModeCommand = ReactiveCommand.Create(() => { IsHorizontal = !IsHorizontal; });
 
         // コマンド内の予期しない例外でアプリを落とさず、画面に出す。
         foreach (var thrown in new[] { ConnectCommand.ThrownExceptions, CalibrateCommand.ThrownExceptions })
@@ -255,10 +256,14 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
             this.RaiseAndSetIfChanged(ref _horizontal, value);
             this.RaisePropertyChanged(nameof(IsVertical));
+            this.RaisePropertyChanged(nameof(ScrollModeMenuText));
             this.RaisePropertyChanged(nameof(PositiveLabel));
             this.RaisePropertyChanged(nameof(NegativeLabel));
         }
     }
+
+    /// <summary>トレイメニューの項目名。現在のモードを示し、クリックでもう一方へ切り替わる。</summary>
+    public string ScrollModeMenuText => _horizontal ? "Scroll Mode: Horizontal  (click to switch)" : "Scroll Mode: Vertical  (click to switch)";
 
     public bool IsVertical
     {
@@ -340,6 +345,9 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
     public ReactiveCommand<Unit, Unit> MinimizeToTrayCommand { get; }
     public ReactiveCommand<Unit, Unit> ExitCommand { get; }
+
+    /// <summary>Scroll Mode を Vertical ⇄ Horizontal で切り替える(トレイメニュー用)。</summary>
+    public ReactiveCommand<Unit, Unit> ToggleScrollModeCommand { get; }
 
     public event EventHandler? ShowWindowRequested;
     public event EventHandler? MinimizeRequested;
