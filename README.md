@@ -50,6 +50,8 @@ dotnet run --project src/BALAN.App -- --simulate   # 模擬ボードで画面と
 
 ### Linux
 
+Windows・Linux とも実機の Balance Board で動作確認済み。
+
 スクロールは uinput の仮想マウス、接続は BlueZ(`bluetoothctl`)で探索して L2CAP で直結する(KUNAI と同じ方式)。初回だけ権限の設定が必要:
 
 ```
@@ -59,13 +61,15 @@ sudo usermod -aG input "$USER"     # ログインし直す
 sudo modprobe uinput
 ```
 
-その後は Windows と同じ(Connect → SYNC ボタン)。権限が無いときは、フッターに設定手順つきのエラーが出る。トレイは環境に合わせて XEmbed(Xfce など)→ StatusNotifierItem(KDE・GNOME の拡張など)の順に自動選択し、どちらも無ければ常駐しない(閉じるボタンで終了)。`BALAN_TRAY=xembed|sni|none` で指定できる。
+その後は Windows と同じ(Connect → SYNC ボタン)。
+
+**注意:** ボードが他の端末(Windows など)とペアリングされていると、接続できません。その場合は、先に相手側でペアリングを解除してください(KUNAI と同じ挙動です)。権限が無いときは、フッターに設定手順つきのエラーが出る。トレイは環境に合わせて XEmbed(Xfce など)→ StatusNotifierItem(KDE・GNOME の拡張など)の順に自動選択し、どちらも無ければ常駐しない(閉じるボタンで終了)。`BALAN_TRAY=xembed|sni|none` で指定できる。
 
 ## 開発
 
 ```
 dotnet build
-dotnet test                       # 92 件。実機・OS 不要
+dotnet test                       # 103 件。実機・OS 不要
 python3 docs/gen_mock.py          # UI モック再生成
 ```
 
