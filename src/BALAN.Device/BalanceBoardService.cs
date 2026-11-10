@@ -153,8 +153,19 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         }
     }
 
+    private int _disposed;
+
+    /// <summary>
+    /// 何度呼んでも安全。DI コンテナは、同じインスタンスを複数のサービス型(本体と <see cref="IBalanceBoard"/>)で登録すると、
+    /// 終了時に Dispose を重ねて呼ぶ。2 回目で破棄済みのロックを触って例外になり、終了(シャットダウン)が止まっていた。
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await DisconnectAsync().ConfigureAwait(false);
         _lifecycle.Dispose();
     }

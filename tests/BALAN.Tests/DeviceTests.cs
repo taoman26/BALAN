@@ -257,6 +257,28 @@ public class BalanceBoardServiceTests
     }
 
     [Fact]
+    public async Task DisposeAsyncIsIdempotent()
+    {
+        var service = new BalanceBoardService(new FakeTransport(() => Array.Empty<FakeConnection>()), Fast);
+        await service.DisposeAsync();
+        await service.DisposeAsync(); // 2 回目でも例外にならない
+    }
+
+    [Fact]
+    public async Task DisposingContainerWithSameInstanceRegisteredTwiceDoesNotThrow()
+    {
+        // Program.cs と同じ登録: 同じインスタンスを本体と IBalanceBoard の 2 つのサービス型で登録する。
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(
+            services, _ => new BalanceBoardService(new FakeTransport(() => Array.Empty<FakeConnection>()), Fast));
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<BALAN.Core.Abstractions.IBalanceBoard>(
+            services, p => Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<BalanceBoardService>(p));
+        var provider = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+        _ = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<BALAN.Core.Abstractions.IBalanceBoard>(provider);
+        await provider.DisposeAsync();
+    }
+
+    [Fact]
     public async Task SkipsWiiRemoteAndUsesTheBoard()
     {
         var remote = new FakeConnection(false);
