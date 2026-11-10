@@ -63,20 +63,28 @@ public partial class App : Application
                 window.Opened += async (_, _) => await viewModel.InitializeAsync();
             }
 
-            // 終了時: 設定を保存し、切断してから改めて終了する。
-            var shutdownDone = false;
-            desktop.ShutdownRequested += async (_, e) =>
+            // 終了時: 設定を保存し、切断し、トレイを片付ける。
+            // ここで e.Cancel = true にして後から改めて終了する作りにしてはいけない。
+            // Windows の OS シャットダウン/ログオフでは、キャンセルがシャットダウンの阻止として扱われ、止まってしまう。
+            // 後始末は(時間を区切って)その場で済ませ、キャンセルせずに終了させる。
+            var cleanedUp = false;
+            desktop.ShutdownRequested += (_, _) =>
             {
-                if (shutdownDone)
+                if (cleanedUp)
                 {
                     return;
                 }
 
-                e.Cancel = true;
-                await viewModel.ShutdownAsync();
-                shutdownDone = true;
-                _tray?.Dispose();
-                desktop.Shutdown();
+                cleanedUp = true;
+                ShutdownCleanup.Run(viewModel.ShutdownAsync, TimeSpan.FromSeconds(2));
+                try
+                {
+                    _tray?.Dispose();
+                }
+                catch
+                {
+                    // 終了処理の失敗で終了を妨げない。
+                }
             };
         }
 
