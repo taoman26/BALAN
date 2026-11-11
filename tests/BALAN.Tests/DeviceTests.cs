@@ -64,6 +64,18 @@ public class ProtocolTests
     }
 
     [Fact]
+    public void ParsesBatteryRawAndLowFlag()
+    {
+        Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x03, 0, 0, 196 }, out var ext, out var pct, out var raw, out var low));
+        Assert.True(ext);
+        Assert.True(low); // フラグのビット 0 = 電池残量わずか(% が 98 でも)
+        Assert.Equal(196, raw);
+        Assert.Equal(98, pct);
+        Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x02, 0, 0, 196 }, out _, out _, out _, out low));
+        Assert.False(low);
+    }
+
+    [Fact]
     public void ParsesStatus()
     {
         Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x02, 0, 0, 100 }, out var ext, out var battery));

@@ -21,6 +21,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
     private ConnectionState _state;
     private int _batteryPercent;
+    private bool _batteryLow;
     private EngineSnapshot _snapshot = EngineSnapshot.Idle;
     private double _deadZone; // kg
     private double _brakeLoad; // kg
@@ -46,6 +47,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _horizontal = s.ScrollMode == ScrollMode.Horizontal;
         _state = board.State;
         _batteryPercent = board.BatteryPercent;
+        _batteryLow = board.BatteryLow;
 
         // 画面 → 設定(即時に巡航へ反映)。保存はまとめて遅延させる。
         _subscriptions.Add(this.WhenAnyValue(x => x.DeadZone, x => x.MaxSpeed, x => x.BrakeStrength, x => x.ScrollEnabled, x => x.BrakeLoadKg, x => x.IsHorizontal)
@@ -89,7 +91,11 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _subscriptions.Add(Observable
             .FromEventPattern<EventHandler<int>, int>(h => board.BatteryChanged += h, h => board.BatteryChanged -= h)
             .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(e => BatteryPercent = e.EventArgs));
+            .Subscribe(e =>
+            {
+                BatteryPercent = e.EventArgs;
+                BatteryLow = board.BatteryLow;
+            }));
 
         // 送出失敗(権限不足など)とペアリングの経過を、フッターに出す。
         _subscriptions.Add(Observable
@@ -160,7 +166,20 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    public string BatteryText => _batteryPercent > 0 && IsConnected ? $"Battery {_batteryPercent}%" : string.Empty;
+    /// <summary>ボード自身が「電池残量わずか」と報告している。</summary>
+    public bool BatteryLow
+    {
+        get => _batteryLow;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _batteryLow, value);
+            this.RaisePropertyChanged(nameof(BatteryText));
+        }
+    }
+
+    public string BatteryText => !IsConnected || _batteryPercent <= 0 ? string.Empty
+        : _batteryLow ? $"Battery LOW ({_batteryPercent}%)"
+        : $"Battery {_batteryPercent}%";
 
     // ----- 荷重・重心・巡航 -----
 

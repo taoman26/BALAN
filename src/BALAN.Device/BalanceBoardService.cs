@@ -36,6 +36,8 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
 
     private ConnectionState _state = ConnectionState.Disconnected;
     private int _batteryPercent;
+    private int _batteryRaw = -1;
+    private bool _batteryLow;
     private IBoardConnection? _connection;
     private Task? _readLoop;
     private volatile CancellationTokenSource? _cts;
@@ -66,6 +68,17 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             lock (_stateGate)
             {
                 return _batteryPercent;
+            }
+        }
+    }
+
+    public bool BatteryLow
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                return _batteryLow;
             }
         }
     }
@@ -327,11 +340,11 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                         frames++;
                         RaiseFrame(calibration.ToKilograms(raw));
                     }
-                    else if (BoardReportParser.TryParseStatus(report, out _, out var battery))
+                    else if (BoardReportParser.TryParseStatus(report, out _, out var battery, out var batteryRaw, out var low))
                     {
                         // ステータスを受けるとレポートモードが戻ることがあるため、都度設定し直す。
                         connection.Write(BoardProtocol.SetReportModeExtension8());
-                        UpdateBattery(battery);
+                        UpdateBattery(battery, batteryRaw, low);
                     }
                 }
 
@@ -373,19 +386,34 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         }
     }
 
-    private void UpdateBattery(int percent)
+    private void UpdateBattery(int percent, int raw, bool low)
     {
+        bool rawChanged, lowChanged, percentChanged;
         lock (_stateGate)
         {
-            if (_batteryPercent == percent)
-            {
-                return;
-            }
-
+            rawChanged = _batteryRaw != raw;
+            lowChanged = _batteryLow != low;
+            percentChanged = _batteryPercent != percent;
+            _batteryRaw = raw;
+            _batteryLow = low;
             _batteryPercent = percent;
         }
 
-        BatteryChanged?.Invoke(this, percent);
+        // 実機での電池表示の精度を後から検証できるよう、生の値が変わるたびに残す(ステータスは約 60 秒ごと)。
+        if (rawChanged || lowChanged)
+        {
+            _log.Info($"Battery raw={raw} ({percent}%){(low ? " LOW" : string.Empty)}");
+        }
+
+        if (lowChanged && low)
+        {
+            _log.Info("Battery is low - replace the Balance Board batteries.");
+        }
+
+        if (percentChanged || lowChanged)
+        {
+            BatteryChanged?.Invoke(this, percent);
+        }
     }
 
     /// <summary>
@@ -404,6 +432,8 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             _connection?.Dispose();
             _connection = null;
             _batteryPercent = 0;
+            _batteryRaw = -1;
+            _batteryLow = false;
         }
 
         SetState(ConnectionState.Disconnected);

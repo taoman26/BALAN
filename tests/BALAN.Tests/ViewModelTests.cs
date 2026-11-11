@@ -13,6 +13,7 @@ public class ScrollModeToggleTests
     {
         public ConnectionState State => ConnectionState.Disconnected;
         public int BatteryPercent => 0;
+        public bool BatteryLow => false;
         public event EventHandler<SensorFrame>? FrameReceived { add { } remove { } }
         public event EventHandler<ConnectionState>? ConnectionStateChanged { add { } remove { } }
         public event EventHandler<int>? BatteryChanged { add { } remove { } }

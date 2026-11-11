@@ -105,6 +105,7 @@ public class BridgeTests
     {
         public ConnectionState State { get; private set; }
         public int BatteryPercent => 0;
+        public bool BatteryLow => false;
         public event EventHandler<SensorFrame>? FrameReceived;
         public event EventHandler<ConnectionState>? ConnectionStateChanged;
         public event EventHandler<int>? BatteryChanged { add { } remove { } }

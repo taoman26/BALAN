@@ -25,6 +25,8 @@ public sealed class SimulatedBalanceBoard : IBalanceBoard, IAsyncDisposable
         }
     }
 
+    public bool BatteryLow => false;
+
     public int BatteryPercent => State == ConnectionState.Connected ? 82 : 0;
 
     public event EventHandler<SensorFrame>? FrameReceived;
