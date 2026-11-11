@@ -156,6 +156,9 @@ internal sealed class FakeConnection : IBoardConnection
     /// <summary>接続後、指定数のフレームを送ったら切断(IOException)する。</summary>
     public int DisconnectAfterFrames { get; set; } = int.MaxValue;
 
+    /// <summary>指定数のフレームを送ったら、接続は生きたまま荷重を送らなくなる(電池が弱ったときの挙動)。</summary>
+    public int StallAfterFrames { get; set; } = int.MaxValue;
+
     public int Read(byte[] buffer)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(FakeConnection));
@@ -169,6 +172,12 @@ internal sealed class FakeConnection : IBoardConnection
         if (Volatile.Read(ref _streamFrames) > 0)
         {
             if (_frameIndex >= DisconnectAfterFrames) throw new IOException("device lost");
+            if (_frameIndex >= StallAfterFrames)
+            {
+                Thread.Sleep(5);
+                return 0;
+            }
+
             var frame = _frameSource!(_frameIndex++);
             Array.Copy(frame, buffer, frame.Length);
             Thread.Sleep(1);
@@ -286,6 +295,28 @@ public class BalanceBoardServiceTests
         Assert.Contains("Connection lost", line);
         Assert.Contains("IOException: device lost", line);
         Assert.Contains("20 frames", line);
+    }
+
+    [Fact]
+    public async Task StalledSensorsWhileConnectedAreLogged()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var options = Fast with { SensorStallAfter = TimeSpan.FromMilliseconds(150) };
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500)) { StallAfterFrames = 10 };
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), options, null, log);
+        await service.ConnectAsync();
+
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.IsEmpty && DateTime.UtcNow < deadline) await Task.Delay(20);
+
+        var line = Assert.Single(messages);
+        Assert.Contains("No sensor data", line);
+        Assert.Contains("batteries", line);
+        Assert.Equal(ConnectionState.Connected, service.State); // 切断ではない
+        await Task.Delay(300);
+        Assert.Single(messages); // 繰り返し出さない
     }
 
     [Fact]

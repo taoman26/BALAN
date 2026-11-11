@@ -12,8 +12,12 @@ public sealed record BalanceBoardOptions(
     TimeSpan ScanInterval,
     TimeSpan StatusInterval,
     TimeSpan PairingInterval,
-    TimeSpan ReadResponseTimeout)
+    TimeSpan ReadResponseTimeout,
+    TimeSpan? SensorStallAfter = null)
 {
+    /// <summary>接続中なのに荷重のデータが途絶えたと判断するまでの時間(既定 3 秒)。</summary>
+    public TimeSpan StallThreshold => SensorStallAfter ?? TimeSpan.FromSeconds(3);
+
     public static BalanceBoardOptions Default { get; } = new(
         TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(60),
         TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
@@ -323,6 +327,8 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         var statusTimer = Stopwatch.StartNew();
         var connectedFor = Stopwatch.StartNew();
         var sinceLastReport = Stopwatch.StartNew();
+        var sinceLastFrame = Stopwatch.StartNew();
+        var stalled = false;
         long frames = 0;
         Exception? failure = null;
 
@@ -338,6 +344,13 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                     if (BoardReportParser.TryParseRawSensors(report, out var raw))
                     {
                         frames++;
+                        sinceLastFrame.Restart();
+                        if (stalled)
+                        {
+                            stalled = false;
+                            _log.Info("Sensor data resumed.");
+                        }
+
                         RaiseFrame(calibration.ToKilograms(raw));
                     }
                     else if (BoardReportParser.TryParseStatus(report, out _, out var battery, out var batteryRaw, out var low))
@@ -346,6 +359,16 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                         connection.Write(BoardProtocol.SetReportModeExtension8());
                         UpdateBattery(battery, batteryRaw, low);
                     }
+                }
+
+                // 接続は生きているのに荷重が届かない。電池の残りが少ないとセンサーが先に反応しなくなり、その後 LED が消えて切れる
+                // (電池の % 表示は最後まで高いままで、当てにならない)。
+                if (!stalled && frames > 0 && sinceLastFrame.Elapsed >= _options.StallThreshold)
+                {
+                    stalled = true;
+                    _log.Info(
+                        $"No sensor data for {sinceLastFrame.Elapsed.TotalSeconds:0} s although still connected " +
+                        "(the batteries may be nearly empty - replace them).");
                 }
 
                 if (statusTimer.Elapsed >= _options.StatusInterval)
