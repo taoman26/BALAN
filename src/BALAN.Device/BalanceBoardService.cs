@@ -12,8 +12,19 @@ public sealed record BalanceBoardOptions(
     TimeSpan ScanInterval,
     TimeSpan StatusInterval,
     TimeSpan PairingInterval,
-    TimeSpan ReadResponseTimeout)
+    TimeSpan ReadResponseTimeout,
+    TimeSpan? SensorStallAfter = null,
+    TimeSpan? SensorFrozenAfter = null)
 {
+    /// <summary>
+    /// 荷重の生の値が、まったく変化しないまま続いたら「固まった」と判断するまでの時間(既定 60 秒)。
+    /// 実機のセンサーは無荷重でも値が微妙に揺れるため、全く変わらないのは異常(電池が弱って反応しなくなる等)。
+    /// </summary>
+    public TimeSpan FrozenThreshold => SensorFrozenAfter ?? TimeSpan.FromSeconds(60);
+
+    /// <summary>接続中なのに荷重のデータが途絶えたと判断するまでの時間(既定 3 秒)。</summary>
+    public TimeSpan StallThreshold => SensorStallAfter ?? TimeSpan.FromSeconds(3);
+
     public static BalanceBoardOptions Default { get; } = new(
         TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(60),
         TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
@@ -30,17 +41,22 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     private readonly IBoardTransport _transport;
     private readonly BalanceBoardOptions _options;
     private readonly IBoardPairing? _pairing;
+    private readonly IAppLog _log;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly object _stateGate = new();
 
     private ConnectionState _state = ConnectionState.Disconnected;
     private int _batteryPercent;
+    private int _batteryRaw = -1;
+    private bool _batteryLow;
+    private bool _sensorsFrozen;
     private IBoardConnection? _connection;
     private Task? _readLoop;
     private volatile CancellationTokenSource? _cts;
 
-    public BalanceBoardService(IBoardTransport transport, BalanceBoardOptions? options = null, IBoardPairing? pairing = null)
+    public BalanceBoardService(IBoardTransport transport, BalanceBoardOptions? options = null, IBoardPairing? pairing = null, IAppLog? log = null)
     {
+        _log = log ?? new NullAppLog();
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _options = options ?? BalanceBoardOptions.Default;
         _pairing = pairing;
@@ -67,6 +83,30 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             }
         }
     }
+
+    public bool BatteryLow
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                return _batteryLow;
+            }
+        }
+    }
+
+    public bool SensorsFrozen
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                return _sensorsFrozen;
+            }
+        }
+    }
+
+    public event EventHandler<bool>? SensorsFrozenChanged;
 
     public event EventHandler<SensorFrame>? FrameReceived;
 
@@ -306,6 +346,15 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     {
         var buffer = new byte[connection.InputReportLength];
         var statusTimer = Stopwatch.StartNew();
+        var connectedFor = Stopwatch.StartNew();
+        var sinceLastReport = Stopwatch.StartNew();
+        var sinceLastFrame = Stopwatch.StartNew();
+        var stalled = false;
+        var sinceValuesChanged = Stopwatch.StartNew();
+        RawSensors? lastRaw = null;
+        var frozen = false;
+        long frames = 0;
+        Exception? failure = null;
 
         try
         {
@@ -315,16 +364,59 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                 if (count > 0)
                 {
                     var report = buffer.AsSpan(0, count);
+                    sinceLastReport.Restart();
                     if (BoardReportParser.TryParseRawSensors(report, out var raw))
                     {
+                        frames++;
+                        sinceLastFrame.Restart();
+                        if (stalled)
+                        {
+                            stalled = false;
+                            _log.Info("Sensor data resumed.");
+                            SetSensorsFrozen(stalled || frozen);
+                        }
+
+                        if (lastRaw != raw)
+                        {
+                            lastRaw = raw;
+                            sinceValuesChanged.Restart();
+                            if (frozen)
+                            {
+                                frozen = false;
+                                _log.Info("Sensor values are changing again.");
+                                SetSensorsFrozen(stalled || frozen);
+                            }
+                        }
+
                         RaiseFrame(calibration.ToKilograms(raw));
                     }
-                    else if (BoardReportParser.TryParseStatus(report, out _, out var battery))
+                    else if (BoardReportParser.TryParseStatus(report, out _, out var battery, out var batteryRaw, out var low))
                     {
                         // ステータスを受けるとレポートモードが戻ることがあるため、都度設定し直す。
                         connection.Write(BoardProtocol.SetReportModeExtension8());
-                        UpdateBattery(battery);
+                        UpdateBattery(battery, batteryRaw, low);
                     }
+                }
+
+                // 接続は生きているのに荷重が届かない。電池の残りが少ないとセンサーが先に反応しなくなり、その後 LED が消えて切れる
+                // (電池の % 表示は最後まで高いままで、当てにならない)。
+                if (!stalled && frames > 0 && sinceLastFrame.Elapsed >= _options.StallThreshold)
+                {
+                    stalled = true;
+                    _log.Info(
+                        $"No sensor data for {sinceLastFrame.Elapsed.TotalSeconds:0} s although still connected " +
+                        "(the batteries may be nearly empty - replace them).");
+                    SetSensorsFrozen(true);
+                }
+
+                // データは届いているのに、値が全く変化しない。センサーが固まっている(電池が弱いとき等)。
+                if (!frozen && frames > 0 && sinceValuesChanged.Elapsed >= _options.FrozenThreshold)
+                {
+                    frozen = true;
+                    _log.Info(
+                        $"Sensor values have not changed for {sinceValuesChanged.Elapsed.TotalSeconds:0} s - " +
+                        "the sensors look frozen (the batteries may be nearly empty - replace them).");
+                    SetSensorsFrozen(true);
                 }
 
                 if (statusTimer.Elapsed >= _options.StatusInterval)
@@ -334,14 +426,20 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 電源オフ・Bluetooth 切断・DisconnectAsync によるクローズ。
+            failure = ex;
         }
         finally
         {
             if (!token.IsCancellationRequested)
             {
+                // 利用者が切断したのではない(ボードの電源オフ・電波・OS の電源管理など)。原因調査のため、状況を残す。
+                var reason = failure is null ? "read loop ended" : $"{failure.GetType().Name}: {failure.Message}";
+                _log.Info(
+                    $"Connection lost after {connectedFor.Elapsed:hh\\:mm\\:ss} " +
+                    $"(battery {BatteryPercent}%, {frames} frames, last report {sinceLastReport.ElapsedMilliseconds} ms ago): {reason}");
                 FinishDisconnected(connection);
             }
         }
@@ -359,19 +457,49 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         }
     }
 
-    private void UpdateBattery(int percent)
+    private void SetSensorsFrozen(bool value)
     {
         lock (_stateGate)
         {
-            if (_batteryPercent == percent)
+            if (_sensorsFrozen == value)
             {
                 return;
             }
 
+            _sensorsFrozen = value;
+        }
+
+        SensorsFrozenChanged?.Invoke(this, value);
+    }
+
+    private void UpdateBattery(int percent, int raw, bool low)
+    {
+        bool rawChanged, lowChanged, percentChanged;
+        lock (_stateGate)
+        {
+            rawChanged = _batteryRaw != raw;
+            lowChanged = _batteryLow != low;
+            percentChanged = _batteryPercent != percent;
+            _batteryRaw = raw;
+            _batteryLow = low;
             _batteryPercent = percent;
         }
 
-        BatteryChanged?.Invoke(this, percent);
+        // 実機での電池表示の精度を後から検証できるよう、生の値が変わるたびに残す(ステータスは約 60 秒ごと)。
+        if (rawChanged || lowChanged)
+        {
+            _log.Info($"Battery raw={raw} ({percent}%){(low ? " LOW" : string.Empty)}");
+        }
+
+        if (lowChanged && low)
+        {
+            _log.Info("Battery is low - replace the Balance Board batteries.");
+        }
+
+        if (percentChanged || lowChanged)
+        {
+            BatteryChanged?.Invoke(this, percent);
+        }
     }
 
     /// <summary>
@@ -390,6 +518,9 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             _connection?.Dispose();
             _connection = null;
             _batteryPercent = 0;
+            _batteryRaw = -1;
+            _batteryLow = false;
+            _sensorsFrozen = false;
         }
 
         SetState(ConnectionState.Disconnected);

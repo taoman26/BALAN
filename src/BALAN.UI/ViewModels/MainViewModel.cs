@@ -20,7 +20,8 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     private readonly CompositeDisposable _subscriptions = new();
 
     private ConnectionState _state;
-    private int _batteryPercent;
+    private bool _batteryLow;
+    private bool _sensorsFrozen;
     private EngineSnapshot _snapshot = EngineSnapshot.Idle;
     private double _deadZone; // kg
     private double _brakeLoad; // kg
@@ -45,7 +46,8 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _scrollEnabled = s.ScrollEnabled;
         _horizontal = s.ScrollMode == ScrollMode.Horizontal;
         _state = board.State;
-        _batteryPercent = board.BatteryPercent;
+        _batteryLow = board.BatteryLow;
+        _sensorsFrozen = board.SensorsFrozen;
 
         // 画面 → 設定(即時に巡航へ反映)。保存はまとめて遅延させる。
         _subscriptions.Add(this.WhenAnyValue(x => x.DeadZone, x => x.MaxSpeed, x => x.BrakeStrength, x => x.ScrollEnabled, x => x.BrakeLoadKg, x => x.IsHorizontal)
@@ -89,7 +91,12 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _subscriptions.Add(Observable
             .FromEventPattern<EventHandler<int>, int>(h => board.BatteryChanged += h, h => board.BatteryChanged -= h)
             .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(e => BatteryPercent = e.EventArgs));
+            .Subscribe(_ => BatteryLow = board.BatteryLow));
+
+        _subscriptions.Add(Observable
+            .FromEventPattern<EventHandler<bool>, bool>(h => board.SensorsFrozenChanged += h, h => board.SensorsFrozenChanged -= h)
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(e => SensorsFrozen = e.EventArgs));
 
         // 送出失敗(権限不足など)とペアリングの経過を、フッターに出す。
         _subscriptions.Add(Observable
@@ -131,6 +138,12 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         private set
         {
             this.RaiseAndSetIfChanged(ref _state, value);
+            if (value != ConnectionState.Connected)
+            {
+                SensorsFrozen = false; // 切断されたら、固まった状態も解消
+            }
+
+            this.RaisePropertyChanged(nameof(IndicatorState));
             this.RaisePropertyChanged(nameof(StatusText));
             this.RaisePropertyChanged(nameof(IsConnected));
             this.RaisePropertyChanged(nameof(ConnectButtonText));
@@ -141,8 +154,35 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
     public bool IsConnected => _state == ConnectionState.Connected;
 
+    /// <summary>
+    /// 接続は生きているのにセンサーが反応していない(電池が弱いとき等)。
+    /// </summary>
+    public bool SensorsFrozen
+    {
+        get => _sensorsFrozen;
+        private set
+        {
+            if (_sensorsFrozen == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _sensorsFrozen, value);
+            foreach (var name in new[] { nameof(IndicatorState), nameof(StatusText), nameof(StateDetail), nameof(TrayToolTip) })
+            {
+                this.RaisePropertyChanged(name);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 通信状態のランプ(画面・トレイ)に使う状態。センサーが固まっているときは、切断と同じ赤にして異常に気づけるようにする。
+    /// </summary>
+    public ConnectionState IndicatorState => _state == ConnectionState.Connected && _sensorsFrozen ? ConnectionState.Disconnected : _state;
+
     public string StatusText => _state switch
     {
+        ConnectionState.Connected when _sensorsFrozen => "Sensors frozen",
         ConnectionState.Connected => "Connected",
         ConnectionState.Connecting => "Connecting...",
         _ => "Disconnected",
@@ -150,17 +190,22 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
     public string ConnectButtonText => _state == ConnectionState.Disconnected ? "Connect" : "Disconnect";
 
-    public int BatteryPercent
+    /// <summary>ボード自身が「電池残量わずか」と報告している。</summary>
+    public bool BatteryLow
     {
-        get => _batteryPercent;
+        get => _batteryLow;
         private set
         {
-            this.RaiseAndSetIfChanged(ref _batteryPercent, value);
+            this.RaiseAndSetIfChanged(ref _batteryLow, value);
             this.RaisePropertyChanged(nameof(BatteryText));
         }
     }
 
-    public string BatteryText => _batteryPercent > 0 && IsConnected ? $"Battery {_batteryPercent}%" : string.Empty;
+    /// <summary>
+    /// 電池残量の表示は、ボードが「残量わずか」と報告したときだけ警告として出す。
+    /// 残量の%は、実機で電池が切れる直前まで 98% のままで当てにならなかったため表示しない。
+    /// </summary>
+    public string BatteryText => IsConnected && _batteryLow ? "⚠ Battery LOW - replace batteries" : string.Empty;
 
     // ----- 荷重・重心・巡航 -----
 
@@ -227,6 +272,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     /// <summary>状態の補足説明(何が起きているかを一言で)。</summary>
     public string StateDetail =>
         !IsConnected ? "Waiting for Balance Board"
+        : _sensorsFrozen ? "Sensors frozen - replace the batteries"
         : !HasData ? "No sensor data"
         : _snapshot.IsBraking ? "Braking"
         : Speed > 0 ? $"Scrolling {DirectionText}{(_scrollEnabled ? string.Empty : "  (output off)")}"
@@ -334,7 +380,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _ => "Press Connect, then the red SYNC button on the Balance Board",
     });
 
-    public string TrayToolTip => IsConnected
+    public string TrayToolTip => IsConnected && !_sensorsFrozen
         ? $"BALAN - {LevelText}{(Speed > 0 ? $" {DirectionText} ({Speed:0.0}/s)" : string.Empty)}"
         : $"BALAN - {StatusText}";
 

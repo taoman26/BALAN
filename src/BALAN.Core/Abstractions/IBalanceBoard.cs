@@ -10,6 +10,18 @@ public interface IBalanceBoard
     /// <summary>電池残量(0〜100)。不明/未接続は 0。</summary>
     int BatteryPercent { get; }
 
+    /// <summary>
+    /// ボード自身が「電池残量わずか」と報告している。%表示は電池の特性上、切れる直前まで高いままのことがあるため、
+    /// 電池交換の合図にはこちらを使う。変化したときも <see cref="BatteryChanged"/> が発火する。
+    /// </summary>
+    bool BatteryLow { get; }
+
+    /// <summary>
+    /// 接続は生きているのに、センサーが反応していない(荷重のデータが途絶、または生の値が長時間まったく変化しない)。
+    /// 電池が弱ったときに起きる。画面とトレイでは、切断と同じ「赤」で示す。変化したとき <see cref="SensorsFrozenChanged"/> が発火する。
+    /// </summary>
+    bool SensorsFrozen { get; }
+
     /// <summary>接続を試みる。見つからなければ <see cref="TimeoutException"/>。</summary>
     Task ConnectAsync();
 
@@ -21,4 +33,6 @@ public interface IBalanceBoard
     event EventHandler<ConnectionState> ConnectionStateChanged;
 
     event EventHandler<int> BatteryChanged;
+
+    event EventHandler<bool> SensorsFrozenChanged;
 }

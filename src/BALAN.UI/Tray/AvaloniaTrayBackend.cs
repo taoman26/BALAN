@@ -36,7 +36,7 @@ public sealed class AvaloniaTrayBackend : ITrayBackend
                 new NativeMenuItem { Header = "Exit", Command = viewModel.ExitCommand },
             },
             Command = viewModel.ShowWindowCommand,
-            Icon = IconFor(viewModel.State),
+            Icon = IconFor(viewModel.IndicatorState),
             ToolTipText = viewModel.TrayToolTip,
             IsVisible = true,
         };

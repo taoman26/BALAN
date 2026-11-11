@@ -35,7 +35,7 @@ public sealed class X11TrayBackend : ITrayBackend
             backend._tray.MenuRequested += (_, p) =>
                 Dispatcher.UIThread.Post(() => backend.ShowMenu(new PixelPoint(p.X, p.Y)));
 
-            if (backend._tray.Start(backend.ImageFor(viewModel.State)))
+            if (backend._tray.Start(backend.ImageFor(viewModel.IndicatorState)))
             {
                 return backend;
             }

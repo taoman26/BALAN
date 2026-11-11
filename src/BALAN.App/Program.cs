@@ -46,6 +46,7 @@ public static class Program
         {
             var runner = provider.GetRequiredService<EngineRunner>();
             _ = provider.GetRequiredService<BoardEngineBridge>(); // デバイス→エンジンの配線
+            _ = provider.GetRequiredService<FileLog>(); // 接続・切断の経過を balan.log に残す
             runner.Start();
 
             return BuildAvaloniaApp(() => provider.GetRequiredService<MainViewModel>(), options, provider.GetRequiredService<IAppLog>()).StartWithClassicDesktopLifetime(args);
@@ -72,6 +73,7 @@ public static class Program
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<MessageLog>();
         services.AddSingleton<IAppLog>(p => p.GetRequiredService<MessageLog>());
+        services.AddSingleton(p => new FileLog(p.GetRequiredService<MessageLog>()));
         services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(JsonSettingsStore.DefaultPath));
         services.AddSingleton<SettingsService>();
         services.AddSingleton<BalanEngine>();
@@ -106,7 +108,8 @@ public static class Program
             services.AddSingleton(p => new BalanceBoardService(
                 p.GetRequiredService<IBoardTransport>(),
                 BalanceBoardOptions.Default,
-                p.GetRequiredService<IBoardPairing>()));
+                p.GetRequiredService<IBoardPairing>(),
+                p.GetRequiredService<IAppLog>()));
             services.AddSingleton<IBalanceBoard>(p => p.GetRequiredService<BalanceBoardService>());
         }
 

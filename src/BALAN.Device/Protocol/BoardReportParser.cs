@@ -25,19 +25,30 @@ public static class BoardReportParser
 
     /// <summary>
     /// ステータスレポート(0x20): [ID][ボタン 2][フラグ][0][0][電池]。
-    /// フラグのビット 1 = 拡張コントローラ接続。
+    /// フラグのビット 0 = 電池残量わずか、ビット 1 = 拡張コントローラ接続。
     /// </summary>
-    public static bool TryParseStatus(ReadOnlySpan<byte> report, out bool extensionConnected, out int batteryPercent)
+    public static bool TryParseStatus(ReadOnlySpan<byte> report, out bool extensionConnected, out int batteryPercent) =>
+        TryParseStatus(report, out extensionConnected, out batteryPercent, out _, out _);
+
+    /// <param name="batteryRaw">電池の生の値(報告されたまま 0〜255)。換算(%)が実機で合っているか確かめるために残す。</param>
+    /// <param name="batteryLow">ボード自身が出す「電池残量わずか」フラグ(フラグのビット 0)。%の換算に依存しない、最も信頼できる合図。</param>
+    public static bool TryParseStatus(
+        ReadOnlySpan<byte> report, out bool extensionConnected, out int batteryPercent, out int batteryRaw, out bool batteryLow)
     {
         extensionConnected = false;
         batteryPercent = 0;
+        batteryRaw = 0;
+        batteryLow = false;
         if (report.Length < 7 || report[0] != BoardProtocol.StatusReportId)
         {
             return false;
         }
 
         extensionConnected = (report[3] & 0x02) != 0;
-        // Wii Remote と同様、0〜200 を 0〜100% とみなす。Balance Board 実機での最大値は要確認(docs/DESIGN.md のリスク参照)。
+        batteryLow = (report[3] & 0x01) != 0;
+        batteryRaw = report[6];
+        // Wii Remote と同様、0〜200 を 0〜100% とみなす。Balance Board 実機では、電池が切れる直前まで高い値(98% など)を示したため
+        // 参考値にすぎない(電池電圧はほぼ最後まで平らで、最後に急落する)。残量わずかの判定は batteryLow フラグを使う。
         batteryPercent = Math.Clamp((int)Math.Round(report[6] * 100.0 / 200), 0, 100);
         return true;
     }

@@ -64,6 +64,18 @@ public class ProtocolTests
     }
 
     [Fact]
+    public void ParsesBatteryRawAndLowFlag()
+    {
+        Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x03, 0, 0, 196 }, out var ext, out var pct, out var raw, out var low));
+        Assert.True(ext);
+        Assert.True(low); // フラグのビット 0 = 電池残量わずか(% が 98 でも)
+        Assert.Equal(196, raw);
+        Assert.Equal(98, pct);
+        Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x02, 0, 0, 196 }, out _, out _, out _, out low));
+        Assert.False(low);
+    }
+
+    [Fact]
     public void ParsesStatus()
     {
         Assert.True(BoardReportParser.TryParseStatus(new byte[] { 0x20, 0, 0, 0x02, 0, 0, 100 }, out var ext, out var battery));
@@ -144,6 +156,9 @@ internal sealed class FakeConnection : IBoardConnection
     /// <summary>接続後、指定数のフレームを送ったら切断(IOException)する。</summary>
     public int DisconnectAfterFrames { get; set; } = int.MaxValue;
 
+    /// <summary>指定数のフレームを送ったら、接続は生きたまま荷重を送らなくなる(電池が弱ったときの挙動)。</summary>
+    public int StallAfterFrames { get; set; } = int.MaxValue;
+
     public int Read(byte[] buffer)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(FakeConnection));
@@ -157,6 +172,12 @@ internal sealed class FakeConnection : IBoardConnection
         if (Volatile.Read(ref _streamFrames) > 0)
         {
             if (_frameIndex >= DisconnectAfterFrames) throw new IOException("device lost");
+            if (_frameIndex >= StallAfterFrames)
+            {
+                Thread.Sleep(5);
+                return 0;
+            }
+
             var frame = _frameSource!(_frameIndex++);
             Array.Copy(frame, buffer, frame.Length);
             Thread.Sleep(1);
@@ -254,6 +275,94 @@ public class BalanceBoardServiceTests
         // 初期化手順: 拡張初期化 → ID 読み出し → 較正読み出し → LED → レポートモード
         var ids = board.Written.Select(w => w[0]).ToList();
         Assert.Equal(new byte[] { 0x16, 0x16, 0x17, 0x17, 0x11, 0x12 }, ids.Take(6).ToArray());
+    }
+
+    [Fact]
+    public async Task UnexpectedDisconnectIsLoggedWithReason()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500)) { DisconnectAfterFrames = 20 };
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), Fast, null, log);
+        var lost = new TaskCompletionSource<bool>();
+        service.ConnectionStateChanged += (_, s) => { if (s == ConnectionState.Disconnected) lost.TrySetResult(true); };
+
+        await service.ConnectAsync();
+        await Within(lost.Task);
+
+        var line = Assert.Single(messages);
+        Assert.Contains("Connection lost", line);
+        Assert.Contains("IOException: device lost", line);
+        Assert.Contains("20 frames", line);
+    }
+
+    [Fact]
+    public async Task StalledSensorsWhileConnectedAreLogged()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var options = Fast with { SensorStallAfter = TimeSpan.FromMilliseconds(150) };
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500)) { StallAfterFrames = 10 };
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), options, null, log);
+        await service.ConnectAsync();
+
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.IsEmpty && DateTime.UtcNow < deadline) await Task.Delay(20);
+
+        var line = Assert.Single(messages);
+        Assert.Contains("No sensor data", line);
+        Assert.Contains("batteries", line);
+        Assert.Equal(ConnectionState.Connected, service.State); // 切断ではない
+        Assert.True(service.SensorsFrozen);
+        await Task.Delay(300);
+        Assert.Single(messages); // 繰り返し出さない
+    }
+
+    [Fact]
+    public async Task FrozenSensorValuesAreLoggedOnceAndRecoveryIsLogged()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var options = Fast with { SensorFrozenAfter = TimeSpan.FromMilliseconds(200) };
+        var wobble = 0; // 揺れが止まったら、値が固定される
+        var board = new FakeConnection(true, i => Report(tr: (ushort)(2000 + (Volatile.Read(ref wobble) == 0 ? i % 3 : 0)), br: 1000, tl: 3000, bl: 1500));
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), options, null, log);
+        await service.ConnectAsync();
+
+        await Task.Delay(500);
+        Assert.Empty(messages); // 揺れている間は警告しない
+
+        Volatile.Write(ref wobble, 1);
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.IsEmpty && DateTime.UtcNow < deadline) await Task.Delay(20);
+        var line = Assert.Single(messages);
+        Assert.Contains("have not changed", line);
+        Assert.Contains("batteries", line);
+        Assert.True(service.SensorsFrozen);
+        await Task.Delay(400);
+        Assert.Single(messages); // 繰り返さない
+
+        Volatile.Write(ref wobble, 0);
+        deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.Count < 2 && DateTime.UtcNow < deadline) await Task.Delay(20);
+        Assert.Contains("changing again", messages.Last());
+        Assert.False(service.SensorsFrozen);
+    }
+
+    [Fact]
+    public async Task UserDisconnectIsNotLoggedAsLost()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500));
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), Fast, null, log);
+        await service.ConnectAsync();
+        await service.DisconnectAsync();
+        Assert.Empty(messages);
     }
 
     [Fact]
