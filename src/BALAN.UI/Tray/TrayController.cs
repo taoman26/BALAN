@@ -31,7 +31,7 @@ public sealed class TrayController : IDisposable
         _viewModel = viewModel;
         _backend = backend;
 
-        _backend.SetState(viewModel.State);
+        _backend.SetState(viewModel.IndicatorState);
         _backend.SetToolTip(viewModel.TrayToolTip);
 
         _window.Closing += OnClosing;
@@ -67,9 +67,9 @@ public sealed class TrayController : IDisposable
 
     private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.State))
+        if (e.PropertyName == nameof(MainViewModel.IndicatorState))
         {
-            _backend.SetState(_viewModel.State);
+            _backend.SetState(_viewModel.IndicatorState);
         }
 
         if (e.PropertyName is nameof(MainViewModel.TrayToolTip))

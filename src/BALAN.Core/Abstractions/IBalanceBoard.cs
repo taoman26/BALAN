@@ -16,6 +16,12 @@ public interface IBalanceBoard
     /// </summary>
     bool BatteryLow { get; }
 
+    /// <summary>
+    /// 接続は生きているのに、センサーが反応していない(荷重のデータが途絶、または生の値が長時間まったく変化しない)。
+    /// 電池が弱ったときに起きる。画面とトレイでは、切断と同じ「赤」で示す。変化したとき <see cref="SensorsFrozenChanged"/> が発火する。
+    /// </summary>
+    bool SensorsFrozen { get; }
+
     /// <summary>接続を試みる。見つからなければ <see cref="TimeoutException"/>。</summary>
     Task ConnectAsync();
 
@@ -27,4 +33,6 @@ public interface IBalanceBoard
     event EventHandler<ConnectionState> ConnectionStateChanged;
 
     event EventHandler<int> BatteryChanged;
+
+    event EventHandler<bool> SensorsFrozenChanged;
 }

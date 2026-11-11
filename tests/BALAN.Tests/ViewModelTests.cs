@@ -14,6 +14,8 @@ public class ScrollModeToggleTests
         public ConnectionState State => ConnectionState.Disconnected;
         public int BatteryPercent => 0;
         public bool BatteryLow => false;
+        public bool SensorsFrozen => false;
+        public event EventHandler<bool>? SensorsFrozenChanged { add { } remove { } }
         public event EventHandler<SensorFrame>? FrameReceived { add { } remove { } }
         public event EventHandler<ConnectionState>? ConnectionStateChanged { add { } remove { } }
         public event EventHandler<int>? BatteryChanged { add { } remove { } }
@@ -26,6 +28,8 @@ public class ScrollModeToggleTests
         public ConnectionState State => ConnectionState.Connected;
         public int BatteryPercent => 98;
         public bool BatteryLow { get; set; }
+        public bool SensorsFrozen => false;
+        public event EventHandler<bool>? SensorsFrozenChanged { add { } remove { } }
         public event EventHandler<SensorFrame>? FrameReceived { add { } remove { } }
         public event EventHandler<ConnectionState>? ConnectionStateChanged { add { } remove { } }
         public event EventHandler<int>? BatteryChanged { add { } remove { } }
@@ -37,6 +41,43 @@ public class ScrollModeToggleTests
     {
         var settings = new SettingsService(new MemoryStore());
         return new MainViewModel(board, new BalanEngine(settings, new RecordingSender(), new FakeClock()), settings);
+    }
+
+    private sealed class FreezableBoard : IBalanceBoard
+    {
+        private bool _frozen;
+        public ConnectionState State => ConnectionState.Connected;
+        public int BatteryPercent => 0;
+        public bool BatteryLow => false;
+        public bool SensorsFrozen => _frozen;
+        public event EventHandler<SensorFrame>? FrameReceived { add { } remove { } }
+        public event EventHandler<ConnectionState>? ConnectionStateChanged { add { } remove { } }
+        public event EventHandler<int>? BatteryChanged { add { } remove { } }
+        public event EventHandler<bool>? SensorsFrozenChanged;
+        public Task ConnectAsync() => Task.CompletedTask;
+        public Task DisconnectAsync() => Task.CompletedTask;
+        public void SetFrozen(bool value) { _frozen = value; SensorsFrozenChanged?.Invoke(this, value); }
+    }
+
+    [Fact]
+    public void FrozenSensorsTurnTheIndicatorRedWhileStillConnected()
+    {
+        var board = new FreezableBoard();
+        using var vm = Create(board);
+        Assert.Equal(ConnectionState.Connected, vm.IndicatorState);
+        Assert.Equal("Connected", vm.StatusText);
+
+        board.SetFrozen(true);
+        System.Threading.Thread.Sleep(50);
+        Assert.Equal(ConnectionState.Disconnected, vm.IndicatorState); // 赤
+        Assert.Equal(ConnectionState.Connected, vm.State); // 接続自体は生きている
+        Assert.Equal("Sensors frozen", vm.StatusText);
+        Assert.Contains("frozen", vm.StateDetail);
+
+        board.SetFrozen(false);
+        System.Threading.Thread.Sleep(50);
+        Assert.Equal(ConnectionState.Connected, vm.IndicatorState);
+        Assert.Equal("Connected", vm.StatusText);
     }
 
     [Fact]

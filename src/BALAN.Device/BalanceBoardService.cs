@@ -49,6 +49,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     private int _batteryPercent;
     private int _batteryRaw = -1;
     private bool _batteryLow;
+    private bool _sensorsFrozen;
     private IBoardConnection? _connection;
     private Task? _readLoop;
     private volatile CancellationTokenSource? _cts;
@@ -93,6 +94,19 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             }
         }
     }
+
+    public bool SensorsFrozen
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                return _sensorsFrozen;
+            }
+        }
+    }
+
+    public event EventHandler<bool>? SensorsFrozenChanged;
 
     public event EventHandler<SensorFrame>? FrameReceived;
 
@@ -359,6 +373,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                         {
                             stalled = false;
                             _log.Info("Sensor data resumed.");
+                            SetSensorsFrozen(stalled || frozen);
                         }
 
                         if (lastRaw != raw)
@@ -369,6 +384,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                             {
                                 frozen = false;
                                 _log.Info("Sensor values are changing again.");
+                                SetSensorsFrozen(stalled || frozen);
                             }
                         }
 
@@ -390,6 +406,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                     _log.Info(
                         $"No sensor data for {sinceLastFrame.Elapsed.TotalSeconds:0} s although still connected " +
                         "(the batteries may be nearly empty - replace them).");
+                    SetSensorsFrozen(true);
                 }
 
                 // データは届いているのに、値が全く変化しない。センサーが固まっている(電池が弱いとき等)。
@@ -399,6 +416,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                     _log.Info(
                         $"Sensor values have not changed for {sinceValuesChanged.Elapsed.TotalSeconds:0} s - " +
                         "the sensors look frozen (the batteries may be nearly empty - replace them).");
+                    SetSensorsFrozen(true);
                 }
 
                 if (statusTimer.Elapsed >= _options.StatusInterval)
@@ -437,6 +455,21 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         {
             // 購読者の不具合でデバイスの読み取りを止めない。
         }
+    }
+
+    private void SetSensorsFrozen(bool value)
+    {
+        lock (_stateGate)
+        {
+            if (_sensorsFrozen == value)
+            {
+                return;
+            }
+
+            _sensorsFrozen = value;
+        }
+
+        SensorsFrozenChanged?.Invoke(this, value);
     }
 
     private void UpdateBattery(int percent, int raw, bool low)
@@ -487,6 +520,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
             _batteryPercent = 0;
             _batteryRaw = -1;
             _batteryLow = false;
+            _sensorsFrozen = false;
         }
 
         SetState(ConnectionState.Disconnected);

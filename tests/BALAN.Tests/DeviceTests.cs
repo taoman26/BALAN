@@ -315,6 +315,7 @@ public class BalanceBoardServiceTests
         Assert.Contains("No sensor data", line);
         Assert.Contains("batteries", line);
         Assert.Equal(ConnectionState.Connected, service.State); // 切断ではない
+        Assert.True(service.SensorsFrozen);
         await Task.Delay(300);
         Assert.Single(messages); // 繰り返し出さない
     }
@@ -340,6 +341,7 @@ public class BalanceBoardServiceTests
         var line = Assert.Single(messages);
         Assert.Contains("have not changed", line);
         Assert.Contains("batteries", line);
+        Assert.True(service.SensorsFrozen);
         await Task.Delay(400);
         Assert.Single(messages); // 繰り返さない
 
@@ -347,6 +349,7 @@ public class BalanceBoardServiceTests
         deadline = DateTime.UtcNow.AddSeconds(3);
         while (messages.Count < 2 && DateTime.UtcNow < deadline) await Task.Delay(20);
         Assert.Contains("changing again", messages.Last());
+        Assert.False(service.SensorsFrozen);
     }
 
     [Fact]
