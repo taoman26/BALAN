@@ -13,8 +13,15 @@ public sealed record BalanceBoardOptions(
     TimeSpan StatusInterval,
     TimeSpan PairingInterval,
     TimeSpan ReadResponseTimeout,
-    TimeSpan? SensorStallAfter = null)
+    TimeSpan? SensorStallAfter = null,
+    TimeSpan? SensorFrozenAfter = null)
 {
+    /// <summary>
+    /// 荷重の生の値が、まったく変化しないまま続いたら「固まった」と判断するまでの時間(既定 60 秒)。
+    /// 実機のセンサーは無荷重でも値が微妙に揺れるため、全く変わらないのは異常(電池が弱って反応しなくなる等)。
+    /// </summary>
+    public TimeSpan FrozenThreshold => SensorFrozenAfter ?? TimeSpan.FromSeconds(60);
+
     /// <summary>接続中なのに荷重のデータが途絶えたと判断するまでの時間(既定 3 秒)。</summary>
     public TimeSpan StallThreshold => SensorStallAfter ?? TimeSpan.FromSeconds(3);
 
@@ -329,6 +336,9 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
         var sinceLastReport = Stopwatch.StartNew();
         var sinceLastFrame = Stopwatch.StartNew();
         var stalled = false;
+        var sinceValuesChanged = Stopwatch.StartNew();
+        RawSensors? lastRaw = null;
+        var frozen = false;
         long frames = 0;
         Exception? failure = null;
 
@@ -351,6 +361,17 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                             _log.Info("Sensor data resumed.");
                         }
 
+                        if (lastRaw != raw)
+                        {
+                            lastRaw = raw;
+                            sinceValuesChanged.Restart();
+                            if (frozen)
+                            {
+                                frozen = false;
+                                _log.Info("Sensor values are changing again.");
+                            }
+                        }
+
                         RaiseFrame(calibration.ToKilograms(raw));
                     }
                     else if (BoardReportParser.TryParseStatus(report, out _, out var battery, out var batteryRaw, out var low))
@@ -369,6 +390,15 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                     _log.Info(
                         $"No sensor data for {sinceLastFrame.Elapsed.TotalSeconds:0} s although still connected " +
                         "(the batteries may be nearly empty - replace them).");
+                }
+
+                // データは届いているのに、値が全く変化しない。センサーが固まっている(電池が弱いとき等)。
+                if (!frozen && frames > 0 && sinceValuesChanged.Elapsed >= _options.FrozenThreshold)
+                {
+                    frozen = true;
+                    _log.Info(
+                        $"Sensor values have not changed for {sinceValuesChanged.Elapsed.TotalSeconds:0} s - " +
+                        "the sensors look frozen (the batteries may be nearly empty - replace them).");
                 }
 
                 if (statusTimer.Elapsed >= _options.StatusInterval)

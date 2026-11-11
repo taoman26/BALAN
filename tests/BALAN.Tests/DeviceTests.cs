@@ -320,6 +320,36 @@ public class BalanceBoardServiceTests
     }
 
     [Fact]
+    public async Task FrozenSensorValuesAreLoggedOnceAndRecoveryIsLogged()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var options = Fast with { SensorFrozenAfter = TimeSpan.FromMilliseconds(200) };
+        var wobble = 0; // 揺れが止まったら、値が固定される
+        var board = new FakeConnection(true, i => Report(tr: (ushort)(2000 + (Volatile.Read(ref wobble) == 0 ? i % 3 : 0)), br: 1000, tl: 3000, bl: 1500));
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), options, null, log);
+        await service.ConnectAsync();
+
+        await Task.Delay(500);
+        Assert.Empty(messages); // 揺れている間は警告しない
+
+        Volatile.Write(ref wobble, 1);
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.IsEmpty && DateTime.UtcNow < deadline) await Task.Delay(20);
+        var line = Assert.Single(messages);
+        Assert.Contains("have not changed", line);
+        Assert.Contains("batteries", line);
+        await Task.Delay(400);
+        Assert.Single(messages); // 繰り返さない
+
+        Volatile.Write(ref wobble, 0);
+        deadline = DateTime.UtcNow.AddSeconds(3);
+        while (messages.Count < 2 && DateTime.UtcNow < deadline) await Task.Delay(20);
+        Assert.Contains("changing again", messages.Last());
+    }
+
+    [Fact]
     public async Task UserDisconnectIsNotLoggedAsLost()
     {
         var log = new BALAN.Core.Abstractions.MessageLog();
