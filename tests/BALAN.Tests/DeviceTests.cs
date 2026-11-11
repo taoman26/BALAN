@@ -257,6 +257,39 @@ public class BalanceBoardServiceTests
     }
 
     [Fact]
+    public async Task UnexpectedDisconnectIsLoggedWithReason()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500)) { DisconnectAfterFrames = 20 };
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), Fast, null, log);
+        var lost = new TaskCompletionSource<bool>();
+        service.ConnectionStateChanged += (_, s) => { if (s == ConnectionState.Disconnected) lost.TrySetResult(true); };
+
+        await service.ConnectAsync();
+        await Within(lost.Task);
+
+        var line = Assert.Single(messages);
+        Assert.Contains("Connection lost", line);
+        Assert.Contains("IOException: device lost", line);
+        Assert.Contains("20 frames", line);
+    }
+
+    [Fact]
+    public async Task UserDisconnectIsNotLoggedAsLost()
+    {
+        var log = new BALAN.Core.Abstractions.MessageLog();
+        var messages = new ConcurrentQueue<string>();
+        log.Logged += messages.Enqueue;
+        var board = new FakeConnection(true, _ => Report(tr: 2000, br: 1000, tl: 3000, bl: 1500));
+        await using var service = new BalanceBoardService(new FakeTransport(() => new[] { board }), Fast, null, log);
+        await service.ConnectAsync();
+        await service.DisconnectAsync();
+        Assert.Empty(messages);
+    }
+
+    [Fact]
     public async Task DisposeAsyncIsIdempotent()
     {
         var service = new BalanceBoardService(new FakeTransport(() => Array.Empty<FakeConnection>()), Fast);

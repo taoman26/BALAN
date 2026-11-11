@@ -30,6 +30,7 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     private readonly IBoardTransport _transport;
     private readonly BalanceBoardOptions _options;
     private readonly IBoardPairing? _pairing;
+    private readonly IAppLog _log;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly object _stateGate = new();
 
@@ -39,8 +40,9 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     private Task? _readLoop;
     private volatile CancellationTokenSource? _cts;
 
-    public BalanceBoardService(IBoardTransport transport, BalanceBoardOptions? options = null, IBoardPairing? pairing = null)
+    public BalanceBoardService(IBoardTransport transport, BalanceBoardOptions? options = null, IBoardPairing? pairing = null, IAppLog? log = null)
     {
+        _log = log ?? new NullAppLog();
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _options = options ?? BalanceBoardOptions.Default;
         _pairing = pairing;
@@ -306,6 +308,10 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
     {
         var buffer = new byte[connection.InputReportLength];
         var statusTimer = Stopwatch.StartNew();
+        var connectedFor = Stopwatch.StartNew();
+        var sinceLastReport = Stopwatch.StartNew();
+        long frames = 0;
+        Exception? failure = null;
 
         try
         {
@@ -315,8 +321,10 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                 if (count > 0)
                 {
                     var report = buffer.AsSpan(0, count);
+                    sinceLastReport.Restart();
                     if (BoardReportParser.TryParseRawSensors(report, out var raw))
                     {
+                        frames++;
                         RaiseFrame(calibration.ToKilograms(raw));
                     }
                     else if (BoardReportParser.TryParseStatus(report, out _, out var battery))
@@ -334,14 +342,20 @@ public sealed class BalanceBoardService : IBalanceBoard, IAsyncDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 電源オフ・Bluetooth 切断・DisconnectAsync によるクローズ。
+            failure = ex;
         }
         finally
         {
             if (!token.IsCancellationRequested)
             {
+                // 利用者が切断したのではない(ボードの電源オフ・電波・OS の電源管理など)。原因調査のため、状況を残す。
+                var reason = failure is null ? "read loop ended" : $"{failure.GetType().Name}: {failure.Message}";
+                _log.Info(
+                    $"Connection lost after {connectedFor.Elapsed:hh\\:mm\\:ss} " +
+                    $"(battery {BatteryPercent}%, {frames} frames, last report {sinceLastReport.ElapsedMilliseconds} ms ago): {reason}");
                 FinishDisconnected(connection);
             }
         }
