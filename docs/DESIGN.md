@@ -86,7 +86,7 @@ EngineRunner (10 ms タイマー) ──→ BalanEngine.Tick
 
 ```
 MainWindow  (900×650, ダークテーマ, DataContext = MainViewModel)
-├─ Header     : BALAN / サブタイトル ・ Battery ・ ● Connected|Connecting|Disconnected ・ [— Minimize to tray]
+├─ Header     : BALAN / サブタイトル ・ 電池警告(残量わずかのときだけ)・ ● Connected|Connecting|Disconnected ・ [— Minimize to tray]
 ├─ Row 1
 │  ├─ LOAD card   : TL TR / BL BR の 4 セル(縦バー + kg) ・ Total
 │  │                BalanceIndicator(カスタムコントロール: デッドゾーン・左=赤/右=緑・ノブ)
@@ -162,7 +162,7 @@ Balance Board は Wii Remote と同じ HID レポート体系で、荷重は「�
 | 3 | 読出 `0xA40024`(24B) | 較正値: 0 / 17 / 34 kg × (TR, BR, TL, BL)。単調増加でなければ失敗扱い |
 | 4 | LED1 点灯、レポートモード `0x12 0x04 0x32`、ステータス要求 | 0x04 = 連続送信(変化がなくても ~100 Hz) |
 | 5 | 受信 `0x32`: `[ID][btn 2][TR 2][BR 2][TL 2][BL 2]`(BE 16bit) | 較正で kg へ。0〜17 kg / 17〜34 kg を別々に線形補間 |
-| — | 受信 `0x20`(ステータス) | レポートモードが戻ることがあるため**都度 0x32 を再設定**。電池残量を更新。60 秒ごとに要求 |
+| — | 受信 `0x20`(ステータス) | レポートモードが戻ることがあるため**都度 0x32 を再設定**。電池の生の値を balan.log に記録し、「残量わずか」フラグ(ビット 0)が立てば警告。60 秒ごとに要求 |
 
 ### 7.2 クラス
 

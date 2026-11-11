@@ -20,7 +20,6 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
     private readonly CompositeDisposable _subscriptions = new();
 
     private ConnectionState _state;
-    private int _batteryPercent;
     private bool _batteryLow;
     private EngineSnapshot _snapshot = EngineSnapshot.Idle;
     private double _deadZone; // kg
@@ -46,7 +45,6 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _scrollEnabled = s.ScrollEnabled;
         _horizontal = s.ScrollMode == ScrollMode.Horizontal;
         _state = board.State;
-        _batteryPercent = board.BatteryPercent;
         _batteryLow = board.BatteryLow;
 
         // 画面 → 設定(即時に巡航へ反映)。保存はまとめて遅延させる。
@@ -91,11 +89,7 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         _subscriptions.Add(Observable
             .FromEventPattern<EventHandler<int>, int>(h => board.BatteryChanged += h, h => board.BatteryChanged -= h)
             .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(e =>
-            {
-                BatteryPercent = e.EventArgs;
-                BatteryLow = board.BatteryLow;
-            }));
+            .Subscribe(_ => BatteryLow = board.BatteryLow));
 
         // 送出失敗(権限不足など)とペアリングの経過を、フッターに出す。
         _subscriptions.Add(Observable
@@ -156,16 +150,6 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
 
     public string ConnectButtonText => _state == ConnectionState.Disconnected ? "Connect" : "Disconnect";
 
-    public int BatteryPercent
-    {
-        get => _batteryPercent;
-        private set
-        {
-            this.RaiseAndSetIfChanged(ref _batteryPercent, value);
-            this.RaisePropertyChanged(nameof(BatteryText));
-        }
-    }
-
     /// <summary>ボード自身が「電池残量わずか」と報告している。</summary>
     public bool BatteryLow
     {
@@ -177,9 +161,11 @@ public sealed class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    public string BatteryText => !IsConnected || _batteryPercent <= 0 ? string.Empty
-        : _batteryLow ? $"Battery LOW ({_batteryPercent}%)"
-        : $"Battery {_batteryPercent}%";
+    /// <summary>
+    /// 電池残量の表示は、ボードが「残量わずか」と報告したときだけ警告として出す。
+    /// 残量の%は、実機で電池が切れる直前まで 98% のままで当てにならなかったため表示しない。
+    /// </summary>
+    public string BatteryText => IsConnected && _batteryLow ? "⚠ Battery LOW - replace batteries" : string.Empty;
 
     // ----- 荷重・重心・巡航 -----
 

@@ -31,7 +31,7 @@ def lerp_hex(a, b, t):
     return "#%02x%02x%02x" % tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
-def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxspeed=15, brake=0.6, horizontal=False, name="mock_main.png"):
+def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxspeed=15, brake=0.6, horizontal=False, low_battery=False, name="mock_main.png"):
     img = Image.new("RGB", (W * S, H * S), BG)
     d = ImageDraw.Draw(img)
 
@@ -68,8 +68,8 @@ def render(connected=True, weights=None, dead=2.0, full=5.0, brake_kg=5.0, maxsp
     rr(px, 52, px+150, 84, FIELD, BORDER, 16)
     dot(px+20, 68, 6, cx)
     t(px+36, 68, label, font(FB, 12), cx, "lm")
-    if connected:
-        t(px-16, 68, "Battery 82%", font(F, 10), DIM, "rm")
+    if connected and low_battery:  # 残量の%は表示しない(当てにならない)。ボードが「残量わずか」と報告したときだけ警告
+        t(px-16, 68, "⚠ Battery LOW - replace batteries", font(FB, 10), YELLOW, "rm")
 
     # ---- Load (4 センサー) ----
     px0, py0, px1, py1 = 24, 100, 440, 372
