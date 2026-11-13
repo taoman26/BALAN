@@ -107,11 +107,11 @@ TrayIcon      : 状態色アイコン(赤/黄/緑) ・ ツールチップに現�
 | `Styles/BalanTheme.axaml` | 配色(モックと同じ)。OpenRGB/OBS 風の業務ツール調 |
 | `Tray/TrayController.cs` | 閉じる/最小化 → 非表示、トレイ、Exit での終了 |
 
-## 5. .NET 8 ソリューション構成
+## 5. .NET 10 ソリューション構成
 
 ```
 BALAN/
-├─ BALAN.sln / Directory.Build.props      net8.0, Nullable, TreatWarningsAsErrors
+├─ BALAN.sln / Directory.Build.props      net10.0, Nullable, TreatWarningsAsErrors
 ├─ src/
 │  ├─ BALAN.Core      データモデル・重心計算・フィルタ・Cruise 制御・エンジン・設定(JSON)
 │  ├─ BALAN.Device    Balance Board 接続(HidSharp)・プロトコル・較正・ペアリング(Windows / Linux)・模擬ボード

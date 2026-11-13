@@ -17,7 +17,9 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="11.3.8" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <!-- Avalonia 11.3.8 が引く 0.21.2 には既知の脆弱性(GHSA-xrw6-gwf8-vvr9)があるため、修正版へ上げる。 -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
   </ItemGroup>
 
   <ItemGroup>
