@@ -73,7 +73,7 @@ dotnet test                       # 103 件。実機・OS 不要
 python3 docs/gen_mock.py          # UI モック再生成
 ```
 
-.NET 8 / Avalonia 11 / ReactiveUI。構成は `src/BALAN.{Core,Device,Input,UI,App}`(KUNAI と同じく Core が最内層)。
+.NET 10 / Avalonia 11 / ReactiveUI。構成は `src/BALAN.{Core,Device,Input,UI,App}`(KUNAI と同じく Core が最内層)。
 
 ## ライセンス
 
